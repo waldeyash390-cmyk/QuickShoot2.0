@@ -1829,6 +1829,7 @@ function callCleanup() {
 
 // --- Button events ---
 els.callBtn.addEventListener("click", () => {
+  console.log("[callBtn] clicked", { mesh: !!state.mesh, peers: state.mesh?.connectedPeerCount(), active: callIsActive() });
   if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
     toast("No one connected yet. Wait for peer to join.");
     return;
@@ -1841,6 +1842,7 @@ els.callBtn.addEventListener("click", () => {
 });
 
 els.headerVideoCallBtn.addEventListener("click", () => {
+  console.log("[headerVideoCallBtn] clicked", { mesh: !!state.mesh, peers: state.mesh?.connectedPeerCount(), active: callIsActive() });
   if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
     toast("No one connected yet. Wait for peer to join.");
     return;

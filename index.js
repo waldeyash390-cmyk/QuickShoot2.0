@@ -131,7 +131,7 @@ const app = express();
 // Files are compressed once, kept in memory, and re-sent instantly. This cuts
 // the page weight by ~75%, which is the biggest win on slow mobile networks.
 // ---------------------------------------------------------------------------
-const PUBLIC_DIR = path.join(__dirname, "..", "public");
+const PUBLIC_DIR = path.join(__dirname, "public");
 const COMPRESSIBLE = /\.(html|js|css|json|svg|webmanifest|txt)$/i;
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",

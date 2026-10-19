@@ -1720,7 +1720,10 @@ function callCleanup() {
 
 // --- Button events ---
 els.callBtn.addEventListener("click", () => {
-  if (!state.fileTransfer) return; // only in active session
+  if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
+    toast("No one connected yet. Wait for peer to join.");
+    return;
+  }
   if (callIsActive()) {
     callEnd();
   } else {
@@ -1729,7 +1732,10 @@ els.callBtn.addEventListener("click", () => {
 });
 
 els.headerVideoCallBtn.addEventListener("click", () => {
-  if (!state.fileTransfer) return;
+  if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
+    toast("No one connected yet. Wait for peer to join.");
+    return;
+  }
   if (callIsActive()) {
     callEnd();
   } else {

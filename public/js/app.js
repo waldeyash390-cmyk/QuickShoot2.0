@@ -184,7 +184,7 @@ function formatClock(totalSeconds) {
 }
 
 function normalizeCode(raw) {
-  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
 }
 
 function resetToHome() {
@@ -1100,8 +1100,8 @@ els.hostBtn.addEventListener("click", startHosting);
 els.joinForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const code = normalizeCode(els.joinCodeInput.value.trim());
-  if (!/^[A-Z0-9]{8}$/.test(code)) {
-    els.homeError.textContent = "Enter the 8-character room code (e.g. 7K9M2X4P).";
+  if (!/^[A-Z0-9]{4}$/.test(code)) {
+    els.homeError.textContent = "Enter the 4-character room code (e.g. OKT3).";
     show(els.homeError);
     return;
   }
@@ -1156,7 +1156,7 @@ els.qrPhotoInput?.addEventListener("change", async (e) => {
     
     if (code && code.data) {
       const extractedCode = normalizeCode(code.data);
-      if (/^[A-Z0-9]{8}$/.test(extractedCode)) {
+      if (/^[A-Z0-9]{4}$/.test(extractedCode)) {
         els.joinCodeInput.value = extractedCode;
         statusEl.textContent = "QR code detected!";
         setTimeout(() => startJoining(extractedCode), 500);

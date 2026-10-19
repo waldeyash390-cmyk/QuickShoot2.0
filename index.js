@@ -28,7 +28,7 @@ const { WebSocketServer } = require("ws");
 const PORT = process.env.PORT || 8080;
 
 const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-const ROOM_CODE_LENGTH = 8;
+const ROOM_CODE_LENGTH = 4;
 const ROOM_JOIN_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
 const HEARTBEAT_INTERVAL_MS = 25 * 1000;
 

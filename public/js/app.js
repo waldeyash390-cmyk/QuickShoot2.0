@@ -232,8 +232,22 @@ async function startHosting() {
   setStatus("connecting", "Connecting…");
 
   state.signaling = new Signaling();
-  state.signaling.addEventListener("open", () => state.signaling.send({ type: "host", passphrase }));
+  state.signaling.addEventListener("open", () => {
+    console.log("Signaling connected, sending host request");
+    state.signaling.send({ type: "host", passphrase });
+  });
   state.signaling.addEventListener("message", (e) => handleSignalingMessage(e.detail));
+  state.signaling.addEventListener("error", () => {
+    console.error("Signaling connection error");
+    toast("Connection failed. Check server is running.");
+    setStatus("error", "Connection failed");
+  });
+  state.signaling.addEventListener("close", () => {
+    console.log("Signaling connection closed");
+    if (els.waitingLabel.textContent.includes("Setting up")) {
+      toast("Connection lost. Retrying…");
+    }
+  });
   state.signaling.connect();
 }
 
@@ -259,6 +273,17 @@ async function startJoining(code) {
     state.signaling.send({ type: "join", code, passphrase });
   });
   state.signaling.addEventListener("message", (e) => handleSignalingMessage(e.detail));
+  state.signaling.addEventListener("error", () => {
+    console.error("Signaling connection error");
+    toast("Connection failed. Check server is running.");
+    setStatus("error", "Connection failed");
+  });
+  state.signaling.addEventListener("close", () => {
+    console.log("Signaling connection closed");
+    if (els.joinLobbySub.textContent.includes("Connecting") || els.joinLobbySub.textContent.includes("Verifying")) {
+      toast("Connection lost. Retrying…");
+    }
+  });
   state.signaling.connect();
 }
 

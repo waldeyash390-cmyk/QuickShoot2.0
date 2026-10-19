@@ -22,7 +22,7 @@ const http = require("http");
 const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
-const zlib = require("zlib");
+const compression = require("compression");
 const { WebSocketServer } = require("ws");
 
 const PORT = process.env.PORT || 8080;
@@ -126,64 +126,9 @@ function send(socket, message) {
 // HTTP + static frontend
 // ---------------------------------------------------------------------------
 const app = express();
-// ---------------------------------------------------------------------------
-// Speed: Brotli/gzip for text files (zero extra dependencies) + smart caching.
-// Files are compressed once, kept in memory, and re-sent instantly. This cuts
-// the page weight by ~75%, which is the biggest win on slow mobile networks.
-// ---------------------------------------------------------------------------
 const PUBLIC_DIR = path.join(__dirname, "public");
-const COMPRESSIBLE = /\.(html|js|css|json|svg|webmanifest|txt)$/i;
-const MIME = {
-  ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".txt": "text/plain; charset=utf-8",
-};
-/** @type {Map<string, {mtime:number, buf:Buffer, etag:string}>} */
-const zcache = new Map();
 
-app.use((req, res, next) => {
-  if (req.method !== "GET" && req.method !== "HEAD") return next();
-  const rel = req.path === "/" ? "/index.html" : req.path;
-  if (!COMPRESSIBLE.test(rel)) return next();
-  const file = path.normalize(path.join(PUBLIC_DIR, rel));
-  if (!file.startsWith(PUBLIC_DIR)) return next();
-  const accept = String(req.headers["accept-encoding"] || "");
-  const enc = /\bbr\b/.test(accept) ? "br" : /\bgzip\b/.test(accept) ? "gzip" : null;
-  if (!enc) return next();
-
-  fs.stat(file, (err, st) => {
-    if (err || !st.isFile()) return next();
-    const key = enc + ":" + file;
-    const hit = zcache.get(key);
-    const send = (entry) => {
-      res.setHeader("Content-Type", MIME[path.extname(file).toLowerCase()] || "application/octet-stream");
-      res.setHeader("Content-Encoding", enc);
-      res.setHeader("Vary", "Accept-Encoding");
-      res.setHeader("ETag", entry.etag);
-      // Always revalidate (tiny 304) so a new deploy shows up immediately.
-      res.setHeader("Cache-Control", "no-cache");
-      if (req.headers["if-none-match"] === entry.etag) return res.status(304).end();
-      res.setHeader("Content-Length", entry.buf.length);
-      res.end(req.method === "HEAD" ? undefined : entry.buf);
-    };
-    if (hit && hit.mtime === st.mtimeMs) return send(hit);
-    fs.readFile(file, (e2, data) => {
-      if (e2) return next();
-      const done = (e3, buf) => {
-        if (e3) return next();
-        const entry = { mtime: st.mtimeMs, buf, etag: `W/"${st.size}-${Math.round(st.mtimeMs)}-${enc}"` };
-        zcache.set(key, entry);
-        send(entry);
-      };
-      if (enc === "br") {
-        zlib.brotliCompress(data, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } }, done);
-      } else {
-        zlib.gzip(data, { level: 9 }, done);
-      }
-    });
-  });
-});
-
+app.use(compression());
 app.use(express.static(PUBLIC_DIR, {
   etag: true,
   setHeaders(res, filePath) {

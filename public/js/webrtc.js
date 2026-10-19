@@ -74,6 +74,7 @@ class PeerConnection extends EventTarget {
 
     this.pc.onconnectionstatechange = () => {
       const state = this.pc.connectionState;
+      console.log(`[WebRTC] Connection to ${this.remotePeerId} state: ${state}`);
       this.dispatchEvent(new CustomEvent("state", { detail: { peerId: this.remotePeerId, state } }));
       if (state === "connected") {
         this._ready = true;
@@ -260,18 +261,21 @@ export class PeerMesh extends EventTarget {
 
   /** Called once after joining: connect to every already-present peer in parallel. */
   async connectToExistingPeers(peerIds) {
+    console.log(`[PeerMesh] Connecting to existing peers: ${peerIds.join(", ")}`);
     const iceServers = await fetchIceServers();
     await Promise.all(peerIds.map((pid) => this._createConnection(pid, true, iceServers)));
   }
 
   /** Server told us a new peer joined — they will initiate toward us. */
   async acceptNewPeer(peerId) {
+    console.log(`[PeerMesh] Accepting new peer: ${peerId}`);
     const iceServers = await fetchIceServers();
     await this._createConnection(peerId, false, iceServers);
   }
 
   async _createConnection(remotePeerId, isInitiator, iceServers) {
     if (this.connections.has(remotePeerId)) return;
+    console.log(`[PeerMesh] Creating connection to ${remotePeerId}, isInitiator: ${isInitiator}`);
     const conn = new PeerConnection(remotePeerId, this.signaling, isInitiator, iceServers);
 
     conn.addEventListener("state", (e) => {

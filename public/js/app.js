@@ -1467,6 +1467,9 @@ function callShowActiveBar(label) {
     }
     // Reset quality indicator
     updateConnectionQuality("good");
+    // Force video elements to play
+    if (els.localVideo) els.localVideo.play().catch(() => {});
+    if (els.remoteVideo) els.remoteVideo.play().catch(() => {});
   } else {
     // Audio call - show top bar
     els.callActiveLabel.textContent = label || "Call active";

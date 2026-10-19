@@ -738,18 +738,6 @@ function formatEta(sec) {
   return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m left`;
 }
 
-function getFileIcon(name) {
-  const ext = name.split(".").pop().toLowerCase();
-  if (["jpg","jpeg","png","gif","webp","svg","bmp","heic"].includes(ext)) return "🖼";
-  if (["mp4","mov","avi","mkv","webm","flv"].includes(ext)) return "🎬";
-  if (["mp3","wav","ogg","flac","aac","m4a"].includes(ext)) return "🎵";
-  if (["pdf"].includes(ext)) return "📄";
-  if (["doc","docx","txt","md","rtf"].includes(ext)) return "📝";
-  if (["zip","rar","7z","tar","gz"].includes(ext)) return "📦";
-  if (["js","ts","jsx","tsx","html","css","json","py","java","cpp","c","h"].includes(ext)) return "💻";
-  return "📎";
-}
-
 // Build a rich file-item row and return refs to its updatable parts
 function createFileItem({ id, name, size, direction }) {
   const icon = getFileIcon(name);

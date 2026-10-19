@@ -220,6 +220,7 @@ async function startHosting() {
   console.log("startHosting called");
   const passphrase = document.getElementById("hostPassphraseInput")?.value.trim() || null;
   console.log("passphrase:", passphrase);
+  toast("Creating room…");
   showScreen("waiting");
   // Show setup spinner while connecting
   show(els.setupState);
@@ -239,6 +240,7 @@ async function startHosting() {
 async function startJoining(code) {
   const passphrase = document.getElementById("joinPassphraseInput")?.value.trim() || null;
   state.roomCode = code;
+  toast("Joining room…");
   showScreen("waiting");
   // Show join lobby UI
   hide(els.setupState);
@@ -1545,6 +1547,11 @@ async function callStartVideo() {
     state.call.isVideo = true;
     currentVideoQuality = "high";
     startBandwidthMonitoring();
+    // Set mirror for local preview (front camera = mirrored)
+    const videoTrack = state.call.localVideoStream.getVideoTracks()[0];
+    if (els.localVideoPip && videoTrack?.getSettings().facingMode === "user") {
+      els.localVideoPip.classList.add("mirror");
+    }
   } catch {
     toast("Camera/microphone access denied.");
     return;
@@ -1585,6 +1592,11 @@ async function callAccept(fromPeerId, withVideo = false) {
       state.call.isVideo = true;
       currentVideoQuality = "high";
       startBandwidthMonitoring();
+      // Set mirror for local preview (front camera = mirrored)
+      const videoTrack = state.call.localVideoStream.getVideoTracks()[0];
+      if (els.localVideoPip && videoTrack?.getSettings().facingMode === "user") {
+        els.localVideoPip.classList.add("mirror");
+      }
     }
   } catch {
     toast("Camera/microphone access denied.");
@@ -1724,9 +1736,10 @@ els.videoCameraBtn?.addEventListener("click", () => {
 els.videoFlipBtn?.addEventListener("click", async () => {
   if (!state.call.localVideoStream) return;
   const oldTrack = state.call.localVideoStream.getVideoTracks()[0];
+  const wasUserFacing = oldTrack.getSettings().facingMode === "user";
   try {
     const newStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: oldTrack.getSettings().facingMode === "user" ? "environment" : "user" }
+      video: { facingMode: wasUserFacing ? "environment" : "user" }
     });
     const newTrack = newStream.getVideoTracks()[0];
     state.call.localVideoStream.removeTrack(oldTrack);
@@ -1739,6 +1752,10 @@ els.videoFlipBtn?.addEventListener("click", async () => {
     }
     // Update local preview
     if (els.localVideo) els.localVideo.srcObject = state.call.localVideoStream;
+    // Toggle mirror class for local preview (only mirror for front-facing/user camera)
+    if (els.localVideoPip) {
+      els.localVideoPip.classList.toggle("mirror", !wasUserFacing);
+    }
   } catch (err) {
     console.error("Camera flip failed:", err);
   }

@@ -45,6 +45,8 @@ const els = {
   fileDrop: $("fileDrop"),
   fileInput: $("fileInput"),
   fileList: $("fileList"),
+  filePanel: $("filePanel"),
+  filePanelClose: $("filePanelClose"),
   composerForm: $("composerForm"),
   attachBtn: $("attachBtn"),
   cameraBtn: $("cameraBtn"),
@@ -911,7 +913,24 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-els.attachBtn.addEventListener("click", () => els.fileInput.click());
+els.attachBtn.addEventListener("click", () => {
+  if (els.filePanel) {
+    const isHidden = els.filePanel.hidden;
+    els.filePanel.hidden = !isHidden;
+    if (!isHidden) {
+      // Close panel - also close file drop zone
+      els.fileDrop.classList.remove('dragover');
+    }
+  } else {
+    els.fileInput.click();
+  }
+});
+
+els.filePanelClose?.addEventListener("click", () => {
+  if (els.filePanel) els.filePanel.hidden = true;
+  els.fileDrop.classList.remove('dragover');
+});
+
 els.fileInput.addEventListener("change", () => {
   if (els.fileInput.files.length && state.fileTransfer) {
     state.fileTransfer.enqueue([...els.fileInput.files]);

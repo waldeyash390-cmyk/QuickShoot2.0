@@ -559,8 +559,48 @@ html.lite .link-line .pulse { animation-duration: 4s; }
 .msg .body h2 { font-size: 1.3em; }
 .msg .body h3 { font-size: 1.1em; }
 
-  .file-panel{   border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; border-radius:16px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.35); }
-.file-drop{
+/* File Transfer Panel (collapsible) */
+.file-panel {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 -8px 32px rgba(0,0,0,0.35);
+  display: flex;
+  flex-direction: column;
+  max-height: 280px;
+}
+.file-panel[hidden] { display: none; }
+
+.file-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 16px 16px 0 0;
+}
+.file-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.file-panel-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.file-panel-close:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.file-drop {
   display:none;
   position:fixed;
   inset:0;

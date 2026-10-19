@@ -48,6 +48,7 @@ const els = {
   composerForm: $("composerForm"),
   attachBtn: $("attachBtn"),
   cameraBtn: $("cameraBtn"),
+  voiceBtn: $("voiceBtn"),
   callBtn: $("headerCallBtn"),
   headerVideoCallBtn: $("headerVideoCallBtn"),
   callNotification: $("callNotification"),
@@ -111,11 +112,14 @@ const state = {
   // Call state
   call: {
     active: false,
+    isVideo: false,
     localStream: null,
-    peerConnections: new Map(), // peerId -> RTCPeerConnection (audio-only)
+    localVideoStream: null,
+    peerConnections: new Map(), // peerId -> RTCPeerConnection
     callTimerHandle: null,
     callStartTime: null,
     incomingCallFrom: null,
+    remoteVideoElements: new Map(),
   },
 };
 
@@ -602,7 +606,7 @@ async function onChatData(rawArrayBuffer, fromPeerId) {
     else state.typingPeers.delete(fromPeerId);
     updateTypingIndicator();
   } else if (msg.t === "call-invite") {
-    callHandleInvite(fromPeerId, label);
+    callHandleInvite(fromPeerId, label, msg.video === true);
   } else if (msg.t === "call-accept") {
     callHandleAccept(fromPeerId);
   } else if (msg.t === "call-decline") {
@@ -683,6 +687,46 @@ function formatSpeed(bps) {
   return `${(bps / (1024 * 1024)).toFixed(2)} MB/s`;
 }
 
+// Professional SVG icons
+const ICONS = {
+  attach: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>`,
+  camera: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="12" r="4"></circle></svg>`,
+  mic: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>`,
+  micActive: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>`,
+  call: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.29 6.29l1.63-1.84a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`,
+  videoCall: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
+  volume: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`,
+  check: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+  close: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
+  pause: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`,
+  upload: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`,
+  download: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`,
+  fileImage: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`,
+  fileVideo: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
+  fileAudio: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5v14"></path><path d="M19 9v6"></path><path d="M3 17v-6"></path><path d="M9 3v18"></path></svg>`,
+  filePdf: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
+  fileDoc: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
+  fileArchive: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line><path d="M20 19H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10"></path></svg>`,
+  fileCode: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`,
+  fileDefault: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`,
+  send: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`,
+  callEnd: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 3.86a10 10 0 0 1 12.54 12.54"></path><path d="M13.82 19.22a10 10 0 0 1-3.74-3.74"></path><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
+  callActive: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle></svg>`,
+  videoIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
+};
+
+function getFileIcon(name) {
+  const ext = name.split(".").pop().toLowerCase();
+  if (["jpg","jpeg","png","gif","webp","svg","bmp","heic"].includes(ext)) return ICONS.fileImage;
+  if (["mp4","mov","avi","mkv","webm","flv"].includes(ext)) return ICONS.fileVideo;
+  if (["mp3","wav","ogg","flac","aac","m4a"].includes(ext)) return ICONS.fileAudio;
+  if (["pdf"].includes(ext)) return ICONS.filePdf;
+  if (["doc","docx","txt","md","rtf"].includes(ext)) return ICONS.fileDoc;
+  if (["zip","rar","7z","tar","gz"].includes(ext)) return ICONS.fileArchive;
+  if (["js","ts","jsx","tsx","html","css","json","py","java","cpp","c","h"].includes(ext)) return ICONS.fileCode;
+  return ICONS.fileDefault;
+}
+
 function formatEta(sec) {
   if (sec === null || sec === undefined || !isFinite(sec) || sec < 0) return "";
   if (sec < 60) return `${Math.ceil(sec)}s left`;
@@ -724,10 +768,10 @@ function createFileItem({ id, name, size, direction }) {
       <span class="fi-eta"></span>
       <span class="fi-spacer"></span>
       ${direction === "up" ? `
-        <button class="fi-btn fi-pause" title="Pause">⏸</button>
-        <button class="fi-btn fi-cancel" title="Cancel">✕</button>
+        <button class="fi-btn fi-pause" title="Pause">${ICONS.pause}</button>
+        <button class="fi-btn fi-cancel" title="Cancel">${ICONS.close}</button>
       ` : `
-        <button class="fi-btn fi-cancel" title="Cancel">✕</button>
+        <button class="fi-btn fi-cancel" title="Cancel">${ICONS.close}</button>
       `}
     </div>`;
   els.fileList.appendChild(li);
@@ -758,7 +802,7 @@ function wireFileTransferEvents() {
         if (pausedIds.has(id)) {
           // Resume
           pausedIds.delete(id);
-          refs.pauseBtn.textContent = "⏸";
+          refs.pauseBtn.innerHTML = ICONS.pause;
           refs.pauseBtn.title = "Pause";
           refs.li.classList.remove("file-item--paused");
           if (ft.resumeIfNeeded) ft.resumeIfNeeded();
@@ -801,7 +845,7 @@ function wireFileTransferEvents() {
     li.querySelector(".fi-progress").value   = 100;
     li.querySelector(".fi-pct").textContent  = "100%";
     li.querySelector(".fi-speed").textContent = "";
-    li.querySelector(".fi-eta").textContent   = "Sent ✓";
+    li.querySelector(".fi-eta").innerHTML   = `Sent ${ICONS.check}`;
     li.querySelector(".fi-bottom").querySelectorAll(".fi-btn").forEach(b => b.remove());
     li.classList.remove("file-item--active", "file-item--paused");
     li.classList.add("file-item--done");
@@ -845,9 +889,9 @@ function wireFileTransferEvents() {
         <span class="fi-size">${formatBytes(blob.size)}</span>
       </div>
       <div class="fi-bottom">
-        <span class="fi-eta fi-done-label">Done ✓</span>
+        <span class="fi-eta fi-done-label">Done ${ICONS.check}</span>
         <span class="fi-spacer"></span>
-        <a class="fi-btn fi-dl-btn" href="${url}" download="${escapeHtml(name)}">⬇ Download</a>
+        <a class="fi-btn fi-dl-btn" href="${url}" download="${escapeHtml(name)}">${ICONS.download} Download</a>
       </div>`;
 
     li.querySelector(".fi-dl-btn").addEventListener("click", () => {
@@ -1214,12 +1258,25 @@ const CALL_ICE = [
   { urls: "stun:stun1.l.google.com:19302" },
 ];
 
+// Video call state
+const state.call = {
+  ...state.call,
+  isVideo: false,
+  localVideoStream: null,
+  remoteVideoElements: new Map(),
+};
+
 // --- helpers ---
 function callIsActive() { return state.call.active; }
 
-function callShowNotification(peerLabel) {
-  els.callNotifSub.textContent = `${peerLabel} is calling…`;
+function callShowNotification(peerLabel, isVideo = false) {
+  els.callNotifSub.textContent = `${peerLabel} is ${isVideo ? "video " : ""}calling…`;
   els.callNotification.removeAttribute("hidden");
+  // Update accept button to show video icon if video call
+  const acceptBtn = document.getElementById("callAcceptBtn");
+  if (acceptBtn) {
+    acceptBtn.innerHTML = isVideo ? ICONS.videoCall : ICONS.check;
+  }
 }
 function callHideNotification() {
   els.callNotification.setAttribute("hidden", "");
@@ -1259,18 +1316,40 @@ async function callSendTo(peerId, obj) {
   state.mesh.sendTo(peerId, "chat", encrypted.buffer.slice(0));
 }
 
-// --- WebRTC audio peer connection per caller ---
-async function callCreateAudioPC(remotePeerId, isInitiator) {
+// --- WebRTC peer connection (audio + optional video) ---
+async function callCreatePC(remotePeerId, isInitiator, withVideo = false) {
   const pc = new RTCPeerConnection({ iceServers: CALL_ICE });
 
   // Add local audio tracks
   if (state.call.localStream) {
     state.call.localStream.getTracks().forEach(t => pc.addTrack(t, state.call.localStream));
   }
+  // Add local video tracks
+  if (withVideo && state.call.localVideoStream) {
+    state.call.localVideoStream.getTracks().forEach(t => pc.addTrack(t, state.call.localVideoStream));
+  }
 
-  // Play remote audio
+  // Handle remote tracks
   pc.ontrack = (e) => {
-    els.callRemoteAudio.srcObject = e.streams[0];
+    const stream = e.streams[0];
+    const hasVideo = stream.getVideoTracks().length > 0;
+    if (hasVideo) {
+      // Create video element for remote peer
+      let videoEl = state.call.remoteVideoElements.get(remotePeerId);
+      if (!videoEl) {
+        videoEl = document.createElement("video");
+        videoEl.autoplay = true;
+        videoEl.playsInline = true;
+        videoEl.style.cssText = "width:100%;height:100%;object-fit:cover;background:#000;border-radius:12px;";
+        state.call.remoteVideoElements.set(remotePeerId, videoEl);
+        // Add to call active bar video container
+        const container = document.getElementById("callVideoContainer");
+        if (container) container.appendChild(videoEl);
+      }
+      videoEl.srcObject = stream;
+    } else {
+      els.callRemoteAudio.srcObject = stream;
+    }
   };
 
   // ICE → send via encrypted chat channel
@@ -1285,16 +1364,17 @@ async function callCreateAudioPC(remotePeerId, isInitiator) {
   if (isInitiator) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    await callSendTo(remotePeerId, { t: "call-signal", payload: { sdp: pc.localDescription } });
+    await callSendTo(remotePeerId, { t: "call-signal", payload: { sdp: pc.localDescription, video: withVideo } });
   }
   return pc;
 }
 
 async function callHandleSignal(fromPeerId, payload) {
   let pc = state.call.peerConnections.get(fromPeerId);
+  const withVideo = payload.video === true;
   if (!pc) {
     // We just accepted the call; create PC as non-initiator
-    pc = await callCreateAudioPC(fromPeerId, false);
+    pc = await callCreatePC(fromPeerId, false, withVideo);
   }
   const { sdp, candidate } = payload;
   if (sdp) {
@@ -1311,7 +1391,7 @@ async function callHandleSignal(fromPeerId, payload) {
 
 // --- Call flow ---
 
-// Caller: starts a call
+// Caller: starts an audio call
 async function callStart() {
   if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
     toast("No one else is in the room.");
@@ -1323,61 +1403,94 @@ async function callStart() {
   }
   try {
     state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    state.call.isVideo = false;
   } catch {
     toast("Microphone access denied.");
     return;
   }
-  await callBroadcast({ t: "call-invite" });
+  await callBroadcast({ t: "call-invite", video: false });
   state.call.active = true;
   els.callBtn.classList.add("call-btn--active");
   callShowActiveBar("Calling…");
   callStartTimer();
-  addSystemMessage("📞 You started a call. Waiting for others to join…");
+  addSystemMessage(`${ICONS.call} You started a call. Waiting for others to join…`);
+}
+
+// Caller: starts a video call
+async function callStartVideo() {
+  if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
+    toast("No one else is in the room.");
+    return;
+  }
+  if (callIsActive()) {
+    toast("Already in a call.");
+    return;
+  }
+  try {
+    state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.call.localVideoStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+    state.call.isVideo = true;
+  } catch {
+    toast("Camera/microphone access denied.");
+    return;
+  }
+  await callBroadcast({ t: "call-invite", video: true });
+  state.call.active = true;
+  els.callBtn.classList.add("call-btn--active");
+  els.headerVideoCallBtn.classList.add("call-btn--active");
+  callShowActiveBar("Video calling…");
+  callStartTimer();
+  addSystemMessage(`${ICONS.videoCall} You started a video call. Waiting for others to join…`);
 }
 
 // Receiver: someone invited us
-function callHandleInvite(fromPeerId, peerLabel) {
+function callHandleInvite(fromPeerId, peerLabel, isVideo = false) {
   if (callIsActive()) {
     // We're already in a call — auto-join new participants
-    callAccept(fromPeerId);
+    callAccept(fromPeerId, isVideo);
     return;
   }
   state.call.incomingCallFrom = fromPeerId;
-  callShowNotification(peerLabel);
+  state.call.incomingIsVideo = isVideo;
+  callShowNotification(peerLabel, isVideo);
 }
 
-// Receiver: user clicks Accept
-async function callAccept(fromPeerId) {
+// Receiver: user clicks Accept (audio or video based on incoming invite)
+async function callAccept(fromPeerId, withVideo = false) {
   const targetId = fromPeerId || state.call.incomingCallFrom;
   callHideNotification();
   if (callIsActive() && state.call.peerConnections.has(targetId)) return;
 
-  if (!state.call.localStream) {
-    try {
-      state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    } catch {
-      toast("Microphone access denied.");
-      return;
+  try {
+    if (!state.call.localStream) {
+      state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     }
+    if (withVideo && !state.call.localVideoStream) {
+      state.call.localVideoStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+      state.call.isVideo = true;
+    }
+  } catch {
+    toast("Camera/microphone access denied.");
+    return;
   }
   state.call.active = true;
   state.call.incomingCallFrom = null;
   els.callBtn.classList.add("call-btn--active");
-  callShowActiveBar("Call active");
+  if (withVideo) els.headerVideoCallBtn.classList.add("call-btn--active");
+  callShowActiveBar(withVideo ? "Video call active" : "Call active");
   if (!state.call.callStartTime) callStartTimer();
 
   await callSendTo(targetId, { t: "call-accept" });
-  // Create audio PC — we are NOT the initiator (caller will initiate SDP)
-  await callCreateAudioPC(targetId, false);
-  addSystemMessage("📞 You joined the call.");
+  await callCreatePC(targetId, false, withVideo);
+  addSystemMessage(withVideo ? `${ICONS.videoCall} You joined the video call.` : `${ICONS.call} You joined the call.`);
 }
 
 // Caller: someone accepted
 async function callHandleAccept(fromPeerId) {
   if (!callIsActive()) return;
-  callShowActiveBar("Call active");
+  callShowActiveBar(state.call.isVideo ? "Video call active" : "Call active");
   // Now initiate SDP toward this peer
-  await callCreateAudioPC(fromPeerId, true);
+  await callCreatePC(fromPeerId, true, state.call.isVideo);
 }
 
 // Receiver: user clicks Decline
@@ -1418,15 +1531,28 @@ function callCleanup() {
   callHideActiveBar();
   callStopTimer();
   state.call.active = false;
+  state.call.isVideo = false;
   state.call.incomingCallFrom = null;
+  state.call.incomingIsVideo = false;
   if (state.call.localStream) {
     state.call.localStream.getTracks().forEach(t => t.stop());
     state.call.localStream = null;
   }
+  if (state.call.localVideoStream) {
+    state.call.localVideoStream.getTracks().forEach(t => t.stop());
+    state.call.localVideoStream = null;
+  }
   for (const pc of state.call.peerConnections.values()) pc.close();
   state.call.peerConnections.clear();
+  // Clean up remote video elements
+  for (const videoEl of state.call.remoteVideoElements.values()) {
+    videoEl.srcObject = null;
+    videoEl.remove();
+  }
+  state.call.remoteVideoElements.clear();
   els.callRemoteAudio.srcObject = null;
   els.callBtn.classList.remove("call-btn--active");
+  els.headerVideoCallBtn.classList.remove("call-btn--active");
 }
 
 // --- Button events ---
@@ -1439,7 +1565,16 @@ els.callBtn.addEventListener("click", () => {
   }
 });
 
-els.callAcceptBtn.addEventListener("click", () => callAccept(null));
+els.headerVideoCallBtn.addEventListener("click", () => {
+  if (!state.fileTransfer) return;
+  if (callIsActive()) {
+    callEnd();
+  } else {
+    callStartVideo();
+  }
+});
+
+els.callAcceptBtn.addEventListener("click", () => callAccept(null, state.call.incomingIsVideo));
 els.callDeclineBtn.addEventListener("click", () => callDecline());
 els.callEndBtn.addEventListener("click", () => {
   callEnd();

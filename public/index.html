@@ -836,7 +836,7 @@
       <ul class="file-list" id="fileList"></ul>
     </section>
     <form class="composer" id="composerForm" autocomplete="off">
-      <button type="button" class="icon-btn" id="attachBtn" aria-label="Attach file">📎</button>
+      <button type="button" class="icon-btn" id="attachBtn" aria-label="Attach file"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
       <button type="button" class="icon-btn camera-btn" id="cameraBtn" aria-label="Take photo">
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/>
@@ -869,16 +869,17 @@
     <span class="call-notif-sub" id="callNotifSub">Someone is calling…</span>
   </div>
   <div class="call-notif-actions">
-    <button class="call-accept-btn" id="callAcceptBtn" aria-label="Accept call">✓</button>
-    <button class="call-decline-btn" id="callDeclineBtn" aria-label="Decline call">✕</button>
+<button class="call-accept-btn" id="callAcceptBtn" aria-label="Accept call"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></button>
+<button class="call-decline-btn" id="callDeclineBtn" aria-label="Decline call"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
   </div>
 </div>
 
 <!-- ======================= ACTIVE CALL BAR ======================= -->
 <div class="call-active-bar" id="callActiveBar" hidden>
-  <span class="call-active-icon">🔊</span>
+  <span class="call-active-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle></svg></span>
   <span class="call-active-label" id="callActiveLabel">Call active</span>
   <span class="call-active-timer" id="callActiveTimer">0:00</span>
+  <div id="callVideoContainer" style="position:absolute;top:100%;left:0;right:0;height:200px;background:#000;z-index:44;display:flex;align-items:center;justify-content:center;"></div>
   <button class="call-end-btn" id="callEndBtn" aria-label="End call">End call</button>
 </div>
 

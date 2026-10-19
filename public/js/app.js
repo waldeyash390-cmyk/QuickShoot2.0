@@ -205,7 +205,9 @@ function resetToHome() {
 
 // ---------------------------------------------------------------- host flow
 async function startHosting() {
+  console.log("startHosting called");
   const passphrase = document.getElementById("hostPassphraseInput")?.value.trim() || null;
+  console.log("passphrase:", passphrase);
   showScreen("waiting");
   // Show setup spinner while connecting
   show(els.setupState);

@@ -14,7 +14,7 @@ const STUN_SERVERS = [
 let cachedIceServers = null;
 let iceServersPromise = null;
 
-async function fetchIceServers() {
+export async function fetchIceServers() {
   if (cachedIceServers) return cachedIceServers;
   if (iceServersPromise) return iceServersPromise;
 
@@ -39,7 +39,7 @@ async function fetchIceServers() {
 
 // Ensure ICE servers are fetched before any connection is created
 let iceServersReady = false;
-async function ensureIceServers() {
+export async function ensureIceServers() {
   if (iceServersReady) return;
   await fetchIceServers();
   iceServersReady = true;

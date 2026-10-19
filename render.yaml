@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: quickshoot
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      # Add these in Render dashboard after creating service:
+      # - key: METERED_SUBDOMAIN
+      #   value: your-app.metered.live
+      # - key: METERED_API_KEY
+      #   value: your-api-key

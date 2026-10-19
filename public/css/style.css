@@ -529,6 +529,36 @@ html.lite .link-line .pulse { animation-duration: 4s; }
 }
 .msg.system{ align-self:center; background:transparent; color:var(--muted); font-size:12px; }
 
+.msg-content { display: flex; flex-direction: column; gap: 2px; }
+.msg-copy-btn {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--muted);
+  transition: opacity 0.15s, color 0.15s;
+  margin-left: 8px;
+}
+.msg:hover .msg-copy-btn { opacity: 1; }
+.msg-copy-btn:hover { color: var(--accent); }
+.msg-copy-btn.copied { color: var(--accent); }
+
+.msg .body code { background: var(--surface-2); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.9em; }
+.msg .body pre { margin: 8px 0; border-radius: 8px; overflow: auto; }
+.msg .body pre code { background: #0d1117; padding: 12px; display: block; font-size: 13px; line-height: 1.5; }
+.msg .body strong { font-weight: 600; }
+.msg .body em { font-style: italic; }
+.msg .body del { text-decoration: line-through; opacity: 0.7; }
+.msg .body a { color: var(--accent); text-decoration: underline; }
+.msg .body ul { margin: 8px 0; padding-left: 20px; }
+.msg .body li { margin: 4px 0; }
+.msg .body h1, .msg .body h2, .msg .body h3, .msg .body h4, .msg .body h5, .msg .body h6 { margin: 8px 0 4px; font-weight: 600; }
+.msg .body h1 { font-size: 1.5em; }
+.msg .body h2 { font-size: 1.3em; }
+.msg .body h3 { font-size: 1.1em; }
+
   .file-panel{   border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; border-radius:16px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.35); }
 .file-drop{
   display:none;
@@ -568,6 +598,9 @@ html.lite .link-line .pulse { animation-duration: 4s; }
   font-size:13px; color:var(--accent); flex-shrink:0; font-weight:700;
 }
 .fi-arrow--done{ color:#5ee6c5; }
+.fi-icon{
+  font-size:14px; flex-shrink:0; margin-right:4px;
+}
 .fi-name{
   flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   color:var(--text); font-size:12px; font-weight:500;
@@ -781,6 +814,22 @@ html.lite .link-line .pulse { animation-duration: 4s; }
 }
 .camera-btn svg { display: block; }
 .camera-btn:hover { color: var(--accent); }
+
+/* Voice button in composer */
+.voice-btn {
+  color: var(--text);
+  flex-shrink: 0;
+}
+.voice-btn svg { display: block; }
+.voice-btn:hover { color: var(--warn); }
+.voice-btn.recording {
+  color: var(--danger);
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+@keyframes voice-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+}
 
 /* Camera modal */
 .camera-modal {

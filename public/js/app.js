@@ -199,6 +199,7 @@ function resetToHome() {
 
 // ---------------------------------------------------------------- host flow
 async function startHosting() {
+  const passphrase = document.getElementById("hostPassphraseInput")?.value.trim() || null;
   showScreen("waiting");
   // Show setup spinner while connecting
   show(els.setupState);
@@ -210,12 +211,13 @@ async function startHosting() {
   setStatus("connecting", "Connecting…");
 
   state.signaling = new Signaling();
-  state.signaling.addEventListener("open", () => state.signaling.send({ type: "host" }));
+  state.signaling.addEventListener("open", () => state.signaling.send({ type: "host", passphrase }));
   state.signaling.addEventListener("message", (e) => handleSignalingMessage(e.detail));
   state.signaling.connect();
 }
 
 async function startJoining(code) {
+  const passphrase = document.getElementById("joinPassphraseInput")?.value.trim() || null;
   state.roomCode = code;
   showScreen("waiting");
   // Show join lobby UI
@@ -232,7 +234,7 @@ async function startJoining(code) {
   state.signaling.addEventListener("open", () => {
     setJoinStep(2);
     els.joinLobbySub.textContent = "Verifying room…";
-    state.signaling.send({ type: "join", code });
+    state.signaling.send({ type: "join", code, passphrase });
   });
   state.signaling.addEventListener("message", (e) => handleSignalingMessage(e.detail));
   state.signaling.connect();
@@ -432,91 +434,89 @@ function cleanupConnection() {
 }
 
 function updateQuality(rttMs) {
-  // Signal-strength bars removed from the UI; quality data is no longer displayed.
+  let level = 0;
+  if (rttMs < 100) level = 4;
+  else if (rttMs < 250) level = 3;
+  else if (rttMs < 500) level = 2;
+  else if (rttMs < 1000) level = 1;
+  const el = document.getElementById("qualityIndicator");
+  if (el) {
+    el.dataset.level = level;
+    el.title = `${rttMs}ms`;
+  }
 }
 
 // ---------------------------------------------------------------- chat
+function renderMarkdown(text) {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/^(#{1,6})\s+(.+)$/gm, (_, hashes, text) => `<h${hashes.length}>${text}</h${hashes.length}>`)
+    .replace(/^\*\s+(.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+    .replace(/\n/g, '<br>');
+}
+
 function addMessage({ text, mine, ts, senderLabel, msgId }) {
   const div = document.createElement("div");
   div.className = `msg ${mine ? "me" : ""}`;
   div.dataset.msgId = msgId;
-  const body = document.createElement("span");
+
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "msg-copy-btn";
+  copyBtn.title = "Copy message";
+  copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+  copyBtn.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(text);
+    copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    copyBtn.classList.add("copied");
+    setTimeout(() => {
+      copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      copyBtn.classList.remove("copied");
+    }, 1500);
+  });
+
+  const body = document.createElement("div");
   body.className = "body";
+  body.innerHTML = renderMarkdown(text);
 
-  // Detect code blocks (```...```) and render with copy button
-  const codeBlockRx = /```([\s\S]*?)```/g;
-  const inlineCodeRx = /`([^`]+)`/g;
-  if (codeBlockRx.test(text) || inlineCodeRx.test(text)) {
-    body.innerHTML = "";
-    let last = 0;
-    const fullRx = /```([\s\S]*?)```|`([^`]+)`/g;
-    let m;
-    fullRx.lastIndex = 0;
-    while ((m = fullRx.exec(text)) !== null) {
-      if (m.index > last) {
-        body.appendChild(document.createTextNode(text.slice(last, m.index)));
-      }
-      const isBlock = m[0].startsWith("```");
-      const code = (m[1] || m[2] || "").trim();
-      if (isBlock) {
-        const wrap = document.createElement("div");
-        wrap.className = "msg-code-block";
-        const pre = document.createElement("pre");
-        const codeEl = document.createElement("code");
-        codeEl.textContent = code;
-        pre.appendChild(codeEl);
-        const copyBtn = document.createElement("button");
-        copyBtn.className = "msg-code-copy";
-        copyBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy`;
-        copyBtn.addEventListener("click", async () => {
-          await navigator.clipboard.writeText(code);
-          copyBtn.textContent = "✓ Copied";
-          copyBtn.classList.add("copied");
-          setTimeout(() => {
-            copyBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy`;
-            copyBtn.classList.remove("copied");
-          }, 2000);
-        });
-        wrap.append(copyBtn, pre);
-        body.appendChild(wrap);
-      } else {
-        const codeEl = document.createElement("code");
-        codeEl.className = "msg-inline-code";
-        codeEl.textContent = code;
-        body.appendChild(codeEl);
-      }
-      last = m.index + m[0].length;
-    }
-    if (last < text.length) body.appendChild(document.createTextNode(text.slice(last)));
-  } else {
-    body.textContent = text;
-  }
-
-  const meta = document.createElement("span");
+  const meta = document.createElement("div");
   meta.className = "meta";
   const time = new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   meta.textContent = mine ? time : `${senderLabel || "Peer"} · ${time}`;
-    const status = document.createElement("span");
-    status.className = "msg-status";
-    status.textContent = "Sent";
-    // Store reference for later update if this is an outgoing message
-    if (mine && msgId) {
-      state.sentStatusElements.set(msgId, status);
-    }
-    // Only attach status for outgoing messages
-    if (mine) {
-      div.append(body, meta, status);
-    } else {
-      // Incoming message – track its ID for read receipt
-      if (msgId) {
-        state.unseenIncomingMsgIds.add(msgId);
-        // Observe visibility for read receipt
-        if (typeof visibilityObserver !== "undefined") visibilityObserver.observe(div);
-      }
-      div.append(body, meta);
-    }
 
-  // Append the message bubble to the chat container and scroll to bottom
+  const status = document.createElement("span");
+  status.className = "msg-status";
+  status.textContent = "Sent";
+  if (mine && msgId) {
+    state.sentStatusElements.set(msgId, status);
+  }
+
+  const contentWrap = document.createElement("div");
+  contentWrap.className = "msg-content";
+  contentWrap.append(body, meta);
+
+  if (mine) {
+    div.append(contentWrap, status, copyBtn);
+  } else {
+    if (msgId) {
+      state.unseenIncomingMsgIds.add(msgId);
+      if (typeof visibilityObserver !== "undefined") visibilityObserver.observe(div);
+    }
+    div.append(contentWrap, copyBtn);
+  }
+
   els.messages.appendChild(div);
   els.messages.scrollTop = els.messages.scrollHeight;
   return div;
@@ -662,6 +662,19 @@ els.messageInput.addEventListener("keydown", (e) => {
   }
 });
 
+// Global keyboard shortcuts
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) return;
+  if (e.key === "/") { e.preventDefault(); els.messageInput?.focus(); }
+  if (e.key === "Escape") {
+    if (!els.settingsOverlay.hidden) hide(els.settingsOverlay);
+    if (!els.leaveConfirmOverlay.hidden) hide(els.leaveConfirmOverlay);
+    if (!els.cameraOverlay.hidden) { if (typeof cameraHide === "function") cameraHide(); }
+    if (!els.toolsOverlay.hidden) hide(els.toolsOverlay);
+    if (!els.convOverlay.classList.contains("open")) hide(els.convOverlay);
+  }
+});
+
 // ---------------------------------------------------------------- files
 function formatSpeed(bps) {
   if (!bps || bps <= 0) return "";
@@ -677,14 +690,28 @@ function formatEta(sec) {
   return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m left`;
 }
 
+function getFileIcon(name) {
+  const ext = name.split(".").pop().toLowerCase();
+  if (["jpg","jpeg","png","gif","webp","svg","bmp","heic"].includes(ext)) return "🖼";
+  if (["mp4","mov","avi","mkv","webm","flv"].includes(ext)) return "🎬";
+  if (["mp3","wav","ogg","flac","aac","m4a"].includes(ext)) return "🎵";
+  if (["pdf"].includes(ext)) return "📄";
+  if (["doc","docx","txt","md","rtf"].includes(ext)) return "📝";
+  if (["zip","rar","7z","tar","gz"].includes(ext)) return "📦";
+  if (["js","ts","jsx","tsx","html","css","json","py","java","cpp","c","h"].includes(ext)) return "💻";
+  return "📎";
+}
+
 // Build a rich file-item row and return refs to its updatable parts
 function createFileItem({ id, name, size, direction }) {
+  const icon = getFileIcon(name);
   const li = document.createElement("li");
   li.className = "file-item file-item--active";
   li.id = `file-${id}`;
   li.innerHTML = `
     <div class="fi-top">
       <span class="fi-arrow">${direction === "up" ? "↑" : "↓"}</span>
+      <span class="fi-icon">${icon}</span>
       <span class="fi-name">${escapeHtml(name)}</span>
       <span class="fi-size">${formatBytes(size)}</span>
     </div>
@@ -884,6 +911,48 @@ els.messageInput.addEventListener("paste", (e) => {
     const file = imageItem.getAsFile();
     if (file) state.fileTransfer.enqueue([file]);
   }
+});
+
+// Voice recording
+const voiceState = { mediaRecorder: null, chunks: [], stream: null, recording: false };
+
+async function voiceStart() {
+  if (voiceState.recording) return;
+  try {
+    voiceState.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    voiceState.mediaRecorder = new MediaRecorder(voiceState.stream, { mimeType: "audio/webm" });
+    voiceState.chunks = [];
+    voiceState.mediaRecorder.ondataavailable = (e) => { if (e.data.size) voiceState.chunks.push(e.data); };
+    voiceState.mediaRecorder.onstop = async () => {
+      const blob = new Blob(voiceState.chunks, { type: "audio/webm" });
+      const file = new File([blob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
+      if (state.fileTransfer) state.fileTransfer.enqueue([file]);
+      voiceState.stream?.getTracks().forEach(t => t.stop());
+      voiceState.stream = null;
+      voiceState.recording = false;
+      els.voiceBtn.classList.remove("recording");
+      els.voiceBtn.title = "Record voice message";
+    };
+    voiceState.mediaRecorder.start();
+    voiceState.recording = true;
+    els.voiceBtn.classList.add("recording");
+    els.voiceBtn.title = "Stop recording";
+  } catch (err) {
+    console.error("Voice recording failed:", err);
+    toast("Microphone access denied");
+  }
+}
+
+function voiceStop() {
+  if (voiceState.mediaRecorder && voiceState.recording) {
+    voiceState.mediaRecorder.stop();
+  }
+}
+
+els.voiceBtn?.addEventListener("click", () => {
+  if (!state.fileTransfer) return;
+  if (voiceState.recording) voiceStop();
+  else voiceStart();
 });
 
 // ---------------------------------------------------------------- home UI

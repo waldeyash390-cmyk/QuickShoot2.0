@@ -57,8 +57,9 @@ function generatePeerId() {
 }
 
 class Room {
-  constructor(code) {
+  constructor(code, passphrase = null) {
     this.code = code;
+    this.passphrase = passphrase;
     /** @type {Map<string, WebSocket>} peerId -> socket */
     this.peers = new Map();
     /** @type {Map<string, string>} peerId -> display name (Host / U1 / U2 / ...) */
@@ -69,6 +70,10 @@ class Room {
     this.joinTimer = setTimeout(() => {
       if (this.peers.size === 0) this.destroy("expired_unjoined");
     }, ROOM_JOIN_TIMEOUT_MS);
+  }
+
+  checkPassphrase(passphrase) {
+    return this.passphrase === passphrase;
   }
 
   addPeer(peerId, socket) {
@@ -184,20 +189,26 @@ wss.on("connection", (socket) => {
 
       case "host": {
         const code = generateRoomCode();
-        const room = new Room(code);
+        const passphrase = msg.passphrase || null;
+        const room = new Room(code, passphrase);
         rooms.set(code, room);
         room.addPeer(socket.peerId, socket);
         room.names.set(socket.peerId, "Host");
         socket.roomCode = code;
-        send(socket, { type: "hosted", code, peerId: socket.peerId, name: "Host" });
+        send(socket, { type: "hosted", code, peerId: socket.peerId, name: "Host", hasPassphrase: !!passphrase });
         break;
       }
 
       case "join": {
       const code = String(msg.code || "").toUpperCase().trim();
+      const passphrase = msg.passphrase || null;
       const room = rooms.get(code);
 
       if (!room) return send(socket, { type: "error", message: "Room code not found or expired." });
+
+      if (room.passphrase && !room.checkPassphrase(passphrase)) {
+        return send(socket, { type: "error", message: "Incorrect passphrase." });
+      }
 
       // Enforce a maximum of 2 participants per room (host + one joiner)
       if (room.peers.size >= 2) {

@@ -148,12 +148,24 @@ app.use((req, res, next) => {
   next();
 });
 
-// Simple in-memory rate limiting
+app.use(compression());
+app.use(express.static(PUBLIC_DIR, {
+  etag: true,
+  setHeaders(res, filePath) {
+    if (/\.(png|jpe?g|webp|avif|woff2?|mp4|ico)$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    } else {
+      res.setHeader("Cache-Control", "no-cache");
+    }
+  },
+}));
+
+// Rate limiting for API endpoints only (not static files)
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const RATE_LIMIT_MAX = 100; // max requests per window
+const RATE_LIMIT_MAX = 200; // max requests per window
 
-function rateLimit(req, res, next) {
+function apiRateLimit(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress;
   const now = Date.now();
   const record = rateLimitMap.get(ip) || { count: 0, resetTime: now + RATE_LIMIT_WINDOW };
@@ -177,19 +189,10 @@ function rateLimit(req, res, next) {
   next();
 }
 
-app.use(rateLimit);
-
-app.use(compression());
-app.use(express.static(PUBLIC_DIR, {
-  etag: true,
-  setHeaders(res, filePath) {
-    if (/\.(png|jpe?g|webp|avif|woff2?|mp4|ico)$/i.test(filePath)) {
-      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
-    } else {
-      res.setHeader("Cache-Control", "no-cache");
-    }
-  },
-}));
+// Apply rate limiting to API routes only
+app.use("/healthz", apiRateLimit);
+app.use("/turn-credentials", apiRateLimit);
+app.use("/ws", apiRateLimit); // This will be handled by WS rate limiting below
 
 // Clean up old rate limit entries periodically
 setInterval(() => {

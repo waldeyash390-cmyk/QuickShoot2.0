@@ -66,6 +66,10 @@ const els = {
   remoteVideo: $("remoteVideo"),
   localVideo: $("localVideo"),
   remoteVideoLabel: $("remoteVideoLabel"),
+  remoteVideoPlaceholder: $("remoteVideoPlaceholder"),
+  videoCallDuration: $("videoCallDuration"),
+  qualityBars: $("qualityBars"),
+  qualityLabel: $("qualityLabel"),
   videoMuteBtn: $("videoMuteBtn"),
   videoCameraBtn: $("videoCameraBtn"),
   videoEndBtn: $("videoEndBtn"),
@@ -706,7 +710,7 @@ const ICONS = {
   mic: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>`,
   micActive: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>`,
   call: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.29 6.29l1.63-1.84a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`,
-  videoCall: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
+  videoCall: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
   volume: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`,
   check: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
   close: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
@@ -1275,6 +1279,16 @@ const CALL_ICE = [
   { urls: "stun:stun1.l.google.com:19302" },
 ];
 
+// Video quality profiles - adaptive based on connection
+const VIDEO_QUALITY = {
+  high: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, maxBitrate: 2500000 },
+  medium: { width: { ideal: 960 }, height: { ideal: 540 }, frameRate: { ideal: 24 }, maxBitrate: 1000000 },
+  low: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 15 }, maxBitrate: 500000 },
+};
+
+let currentVideoQuality = "high";
+let bandwidthCheckInterval = null;
+
 // Video call state
 Object.assign(state.call, {
   isVideo: false,
@@ -1302,10 +1316,13 @@ function callShowActiveBar(label) {
     // Video call - show full-screen overlay
     els.videoCallOverlay?.removeAttribute("hidden");
     els.remoteVideoLabel.textContent = label || "Video call";
+    els.remoteVideoPlaceholder?.setAttribute("hidden", "");
     // Ensure local video preview shows
     if (els.localVideo && state.call.localVideoStream) {
       els.localVideo.srcObject = state.call.localVideoStream;
     }
+    // Reset quality indicator
+    updateConnectionQuality("good");
   } else {
     // Audio call - show top bar
     els.callActiveLabel.textContent = label || "Call active";
@@ -1317,6 +1334,8 @@ function callHideActiveBar() {
   els.callActiveBar.setAttribute("hidden", "");
   document.body.classList.remove("call-bar-active");
   els.videoCallOverlay?.setAttribute("hidden", "");
+  els.remoteVideoPlaceholder?.removeAttribute("hidden");
+  stopBandwidthMonitoring();
 }
 function callStartTimer() {
   state.call.callStartTime = Date.now();
@@ -1326,12 +1345,83 @@ function callStartTimer() {
     const m = Math.floor(secs / 60);
     const s = (secs % 60).toString().padStart(2, "0");
     els.callActiveTimer.textContent = `${m}:${s}`;
+    if (els.videoCallDuration) {
+      els.videoCallDuration.textContent = `${m}:${s}`;
+    }
+  }, 1000);
+}
+
+function updateConnectionQuality(quality) {
+  if (!els.qualityBars) return;
+  els.qualityBars.className = `quality-bars quality-${quality}`;
+  if (els.qualityLabel) {
+    const labels = { good: "Good", fair: "Fair", poor: "Poor" };
+    els.qualityLabel.textContent = labels[quality] || "Good";
+  }
+}
+    els.callActiveTimer.textContent = `${m}:${s}`;
   }, 1000);
 }
 function callStopTimer() {
   if (state.call.callTimerHandle) clearInterval(state.call.callTimerHandle);
   state.call.callTimerHandle = null;
   els.callActiveTimer.textContent = "0:00";
+  stopBandwidthMonitoring();
+}
+
+function startBandwidthMonitoring() {
+  if (bandwidthCheckInterval) return;
+  bandwidthCheckInterval = setInterval(async () => {
+    if (!state.call.isVideo || !state.call.active) {
+      stopBandwidthMonitoring();
+      return;
+    }
+    for (const [peerId, pc] of state.call.peerConnections.entries()) {
+      try {
+        const stats = await pc.getStats();
+        let bytesReceived = 0, packetsLost = 0, packetsReceived = 0;
+        stats.forEach((report) => {
+          if (report.type === "inbound-rtp" && report.kind === "video") {
+            bytesReceived += report.bytesReceived || 0;
+            packetsLost += report.packetsLost || 0;
+            packetsReceived += report.packetsReceived || 0;
+          }
+        });
+        if (packetsReceived > 0) {
+          const lossRate = packetsLost / (packetsReceived + packetsLost);
+          if (lossRate > 0.1 && currentVideoQuality !== "low") {
+            currentVideoQuality = currentVideoQuality === "high" ? "medium" : "low";
+            await renegotiateVideoQuality();
+          } else if (lossRate < 0.01 && currentVideoQuality !== "high") {
+            currentVideoQuality = currentVideoQuality === "low" ? "medium" : "high";
+            await renegotiateVideoQuality();
+          }
+        }
+      } catch (e) {
+        // Stats not available yet
+      }
+    }
+  }, 5000);
+}
+
+function stopBandwidthMonitoring() {
+  if (bandwidthCheckInterval) {
+    clearInterval(bandwidthCheckInterval);
+    bandwidthCheckInterval = null;
+  }
+}
+
+async function renegotiateVideoQuality() {
+  const constraints = VIDEO_QUALITY[currentVideoQuality];
+  if (!state.call.localVideoStream) return;
+  const sender = [...state.call.peerConnections.values()][0]?.getSenders?.().find(s => s.track?.kind === "video");
+  if (sender && sender.track) {
+    try {
+      await sender.track.applyConstraints(constraints);
+    } catch (e) {
+      console.warn("Failed to apply video constraints:", e);
+    }
+  }
 }
 
 // Broadcast a call-typed chat payload to all peers
@@ -1366,6 +1456,7 @@ async function callCreatePC(remotePeerId, isInitiator, withVideo = false) {
       if (els.remoteVideo) {
         els.remoteVideo.srcObject = stream;
         els.remoteVideoLabel.textContent = "Connected";
+        els.remoteVideoPlaceholder?.setAttribute("hidden", "");
       }
     } else {
       els.callRemoteAudio.srcObject = stream;
@@ -1447,9 +1538,13 @@ async function callStartVideo() {
     return;
   }
   try {
-    state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    state.call.localVideoStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+    state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+    state.call.localVideoStream = await navigator.mediaDevices.getUserMedia({ 
+      video: VIDEO_QUALITY.high 
+    });
     state.call.isVideo = true;
+    currentVideoQuality = "high";
+    startBandwidthMonitoring();
   } catch {
     toast("Camera/microphone access denied.");
     return;
@@ -1483,11 +1578,13 @@ async function callAccept(fromPeerId, withVideo = false) {
 
   try {
     if (!state.call.localStream) {
-      state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, echoCancellation: true, noiseSuppression: true, autoGainControl: true });
     }
     if (withVideo && !state.call.localVideoStream) {
-      state.call.localVideoStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+      state.call.localVideoStream = await navigator.mediaDevices.getUserMedia({ video: VIDEO_QUALITY.high });
       state.call.isVideo = true;
+      currentVideoQuality = "high";
+      startBandwidthMonitoring();
     }
   } catch {
     toast("Camera/microphone access denied.");

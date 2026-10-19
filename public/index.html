@@ -894,13 +894,28 @@
 <!-- ======================= VIDEO CALL OVERLAY ======================= -->
 <div class="overlay" id="videoCallOverlay" hidden>
   <div class="video-call-container">
+    <div class="connection-quality" id="connectionQuality">
+      <div class="quality-bars" id="qualityBars">
+        <div class="quality-bar"></div>
+        <div class="quality-bar"></div>
+        <div class="quality-bar"></div>
+        <div class="quality-bar"></div>
+        <div class="quality-bar"></div>
+      </div>
+      <span class="quality-label" id="qualityLabel">Good</span>
+    </div>
     <div class="remote-video-wrapper">
       <video id="remoteVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+      <div class="remote-video-placeholder" id="remoteVideoPlaceholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+        <span>Waiting for video…</span>
+      </div>
       <div class="remote-video-label" id="remoteVideoLabel">Connecting…</div>
     </div>
     <div class="local-video-pip" id="localVideoPip">
-      <video id="localVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:12px;"></video>
+      <video id="localVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;"></video>
     </div>
+    <div class="video-call-duration" id="videoCallDuration">0:00</div>
     <div class="video-call-controls">
       <button class="video-control-btn" id="videoMuteBtn" aria-label="Mute/Unmute">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>

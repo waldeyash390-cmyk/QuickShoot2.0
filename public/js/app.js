@@ -1268,12 +1268,11 @@ const CALL_ICE = [
 ];
 
 // Video call state
-const state.call = {
-  ...state.call,
+Object.assign(state.call, {
   isVideo: false,
   localVideoStream: null,
   remoteVideoElements: new Map(),
-};
+});
 
 // --- helpers ---
 function callIsActive() { return state.call.active; }

@@ -1061,7 +1061,7 @@
 <script type="module" src="js/app.js"></script>
 <script type="module">
   // 3D background + tilt: loaded after the page is interactive so it never blocks first paint.
-  const go = () => import("./js/fx.js").then(m => m.initFx()).catch(() => {
+  const go = () => import("./fx.js").then(m => m.initFx()).catch(() => {
     const c = document.getElementById("bgCanvas"); if (c) c.classList.add("off");
   });
   (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(go);

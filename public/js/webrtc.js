@@ -37,8 +37,12 @@ async function fetchIceServers() {
   return iceServersPromise;
 }
 
-function getIceServers() {
-  return cachedIceServers || STUN_SERVERS;
+// Ensure ICE servers are fetched before any connection is created
+let iceServersReady = false;
+async function ensureIceServers() {
+  if (iceServersReady) return;
+  await fetchIceServers();
+  iceServersReady = true;
 }
 
 class PeerConnection extends EventTarget {
@@ -54,6 +58,8 @@ class PeerConnection extends EventTarget {
     this._statsTimer = null;
     this._ready = false;
     this._retryAttempted = false;
+    this._iceRestartAttempted = false;
+    this._disconnectTimeout = null;
   }
 
   async start() {
@@ -72,6 +78,14 @@ class PeerConnection extends EventTarget {
       }
     };
 
+    this.pc.oniceconnectionstatechange = () => {
+      const iceState = this.pc.iceConnectionState;
+      console.log(`[WebRTC] ICE state to ${this.remotePeerId}: ${iceState}`);
+      if (iceState === "disconnected" || iceState === "failed") {
+        this._scheduleIceRestart();
+      }
+    };
+
     this.pc.onconnectionstatechange = () => {
       const state = this.pc.connectionState;
       console.log(`[WebRTC] Connection to ${this.remotePeerId} state: ${state}`);
@@ -79,8 +93,13 @@ class PeerConnection extends EventTarget {
       if (state === "connected") {
         this._ready = true;
         this._startStatsLoop();
+        this._iceRestartAttempted = false;
+        if (this._disconnectTimeout) {
+          clearTimeout(this._disconnectTimeout);
+          this._disconnectTimeout = null;
+        }
       }
-      if (["failed", "disconnected", "closed"].includes(state)) {
+      if (["failed", "closed"].includes(state)) {
         this._ready = false;
         this._stopStatsLoop();
         if (state === "failed" && !this._retryAttempted) {
@@ -88,6 +107,12 @@ class PeerConnection extends EventTarget {
           console.log(`[WebRTC] Connection to ${this.remotePeerId} failed, retrying with relay-only...`);
           this._retryWithRelay();
         }
+      }
+      if (state === "disconnected") {
+        // Schedule reconnection attempt after 3 seconds
+        this._disconnectTimeout = setTimeout(() => {
+          this._attemptReconnection();
+        }, 3000);
       }
     };
 
@@ -161,6 +186,52 @@ class PeerConnection extends EventTarget {
       }
     } catch (err) {
       console.error(`[WebRTC] Relay retry failed for ${this.remotePeerId}:`, err);
+    }
+  }
+
+  _scheduleIceRestart() {
+    if (this._iceRestartAttempted) return;
+    if (this.pc.connectionState !== "connected" && this.pc.connectionState !== "connecting") return;
+    
+    this._iceRestartAttempted = true;
+    console.log(`[WebRTC] Scheduling ICE restart for ${this.remotePeerId}`);
+    
+    // Try ICE restart by creating a new offer with ICE restart flag
+    setTimeout(async () => {
+      try {
+        if (this.pc && this.pc.connectionState === "connected") {
+          const offer = await this.pc.createOffer({ iceRestart: true });
+          await this.pc.setLocalDescription(offer);
+          this.signaling.send({
+            type: "signal",
+            to: this.remotePeerId,
+            payload: { sdp: this.pc.localDescription, iceRestart: true },
+          });
+          console.log(`[WebRTC] ICE restart offer sent for ${this.remotePeerId}`);
+        }
+      } catch (err) {
+        console.error(`[WebRTC] ICE restart failed for ${this.remotePeerId}:`, err);
+        this._iceRestartAttempted = false;
+      }
+    }, 1000);
+  }
+
+  async _attemptReconnection() {
+    if (this.pc.connectionState === "connected") return;
+    if (this._retryAttempted) return;
+    
+    console.log(`[WebRTC] Attempting reconnection for ${this.remotePeerId}`);
+    
+    try {
+      // Close current PC and create new one
+      this.close();
+      await this.start();
+      
+      if (this.isInitiator) {
+        await this._makeOffer();
+      }
+    } catch (err) {
+      console.error(`[WebRTC] Reconnection failed for ${this.remotePeerId}:`, err);
     }
   }
 

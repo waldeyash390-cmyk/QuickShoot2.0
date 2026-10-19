@@ -123,6 +123,8 @@ const state = {
   myName: null,
   // Peers that were already in the room when we joined (don't announce them as "joined")
   existingPeerIds: new Set(),
+  // Blob URLs to revoke on cleanup
+  fileBlobUrls: [],
   // Call state
   call: {
     active: false,
@@ -182,7 +184,7 @@ function formatClock(totalSeconds) {
 }
 
 function normalizeCode(raw) {
-  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
 }
 
 function resetToHome() {
@@ -319,7 +321,18 @@ async function handleSignalingMessage(msg) {
       show(els.roomCodeBlock);
       if (els.waitingHint) els.waitingHint.textContent = "Waiting for someone to join…";
       const shareUrl = `${location.origin}${location.pathname}?code=${encodeURIComponent(msg.code)}`;
-      els.qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}`;
+      if (window.QRCode) {
+        new QRCode(els.qrImg, {
+          text: shareUrl,
+          width: 200,
+          height: 200,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } else {
+        els.qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}`;
+      }
       if (els.qrWrap) show(els.qrWrap);
       // Host creates the mesh but waits for first peer before entering chat
       try {
@@ -490,6 +503,12 @@ function cleanupConnection() {
   if (state.mesh) state.mesh.close();
   if (state.signaling) state.signaling.close();
   if (state.timerHandle) clearInterval(state.timerHandle);
+  // Clean up observers
+  if (typeof visibilityObserver !== "undefined") visibilityObserver.disconnect();
+  if (state.resizeObserver) state.resizeObserver.disconnect();
+  // Revoke any pending blob URLs
+  state.fileBlobUrls?.forEach(url => URL.revokeObjectURL(url));
+  state.fileBlobUrls = [];
 }
 
 function updateQuality(rttMs) {
@@ -685,18 +704,19 @@ els.messageInput.addEventListener("input", () => {
 });
 
 // Keep --composer-h in sync with the fixed composer's real rendered height,
-// so the chat area always reserves exactly enough space and content never
-// hides behind it (handles the textarea growing, safe-area insets, etc).
-if (typeof ResizeObserver !== "undefined") {
-  const syncComposerHeight = () => {
-    document.documentElement.style.setProperty(
-      "--composer-h",
-      `${els.composerForm.offsetHeight}px`
-    );
-  };
-  new ResizeObserver(syncComposerHeight).observe(els.composerForm);
-  syncComposerHeight();
-}
+  // so the chat area always reserves exactly enough space and content never
+  // hides behind it (handles the textarea growing, safe-area insets, etc).
+  if (typeof ResizeObserver !== "undefined") {
+    const syncComposerHeight = () => {
+      document.documentElement.style.setProperty(
+        "--composer-h",
+        `${els.composerForm.offsetHeight}px`
+      );
+    };
+    state.resizeObserver = new ResizeObserver(syncComposerHeight);
+    state.resizeObserver.observe(els.composerForm);
+    syncComposerHeight();
+  }
 
 els.composerForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -922,6 +942,7 @@ function wireFileTransferEvents() {
     const li = document.getElementById(`file-${id}`);
     if (!li) return;
     const url = URL.createObjectURL(blob);
+    state.fileBlobUrls.push(url);
 
     li.classList.remove("file-item--active");
     li.classList.add("file-item--done");
@@ -938,7 +959,10 @@ function wireFileTransferEvents() {
       </div>`;
 
     li.querySelector(".fi-dl-btn").addEventListener("click", () => {
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        state.fileBlobUrls = state.fileBlobUrls.filter(u => u !== url);
+      }, 60_000);
     });
   });
 
@@ -1017,19 +1041,30 @@ els.messageInput.addEventListener("paste", (e) => {
   }
 });
 
-// Voice recording
+// Voice recording - detect best supported mime type
+let voiceMimeType = "audio/webm";
+try {
+  if (MediaRecorder.isTypeSupported("audio/webm")) voiceMimeType = "audio/webm";
+  else if (MediaRecorder.isTypeSupported("audio/mp4")) voiceMimeType = "audio/mp4";
+  else if (MediaRecorder.isTypeSupported("audio/aac")) voiceMimeType = "audio/aac";
+  else if (MediaRecorder.isTypeSupported("audio/ogg")) voiceMimeType = "audio/ogg";
+} catch (e) {
+  voiceMimeType = "audio/webm";
+}
+
 const voiceState = { mediaRecorder: null, chunks: [], stream: null, recording: false };
 
 async function voiceStart() {
   if (voiceState.recording) return;
   try {
     voiceState.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    voiceState.mediaRecorder = new MediaRecorder(voiceState.stream, { mimeType: "audio/webm" });
+    voiceState.mediaRecorder = new MediaRecorder(voiceState.stream, { mimeType: voiceMimeType });
     voiceState.chunks = [];
     voiceState.mediaRecorder.ondataavailable = (e) => { if (e.data.size) voiceState.chunks.push(e.data); };
     voiceState.mediaRecorder.onstop = async () => {
-      const blob = new Blob(voiceState.chunks, { type: "audio/webm" });
-      const file = new File([blob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
+      const ext = voiceMimeType.split("/")[1] || "webm";
+      const blob = new Blob(voiceState.chunks, { type: voiceMimeType });
+      const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: voiceMimeType });
       if (state.fileTransfer) state.fileTransfer.enqueue([file]);
       voiceState.stream?.getTracks().forEach(t => t.stop());
       voiceState.stream = null;
@@ -1065,8 +1100,8 @@ els.hostBtn.addEventListener("click", startHosting);
 els.joinForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const code = normalizeCode(els.joinCodeInput.value.trim());
-  if (!/^[A-Z0-9]{4}$/.test(code)) {
-    els.homeError.textContent = "Enter the 4-character room code (e.g. OKT3).";
+  if (!/^[A-Z0-9]{8}$/.test(code)) {
+    els.homeError.textContent = "Enter the 8-character room code (e.g. 7K9M2X4P).";
     show(els.homeError);
     return;
   }
@@ -1076,6 +1111,68 @@ els.joinForm.addEventListener("submit", (e) => {
 
 els.joinCodeInput.addEventListener("input", () => {
   els.joinCodeInput.value = normalizeCode(els.joinCodeInput.value);
+});
+
+// QR code scanning from photo
+els.qrCamBtn?.addEventListener("click", () => {
+  els.qrPhotoInput?.click();
+});
+
+els.qrPhotoInput?.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById("qrCamStatus");
+  statusEl.textContent = "Scanning…";
+  statusEl.hidden = false;
+  try {
+    const canvas = document.getElementById("qrCanvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+    });
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(img.src);
+    
+    // Try to decode QR code from canvas
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let code = null;
+    
+    // Try jsQR if available (we'll load it dynamically)
+    if (window.jsQR) {
+      code = jsQR(imageData.data, canvas.width, canvas.height);
+    } else {
+      // Load jsQR dynamically
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+      document.head.appendChild(script);
+      await new Promise(r => script.onload = r);
+      code = window.jsQR(imageData.data, canvas.width, canvas.height);
+    }
+    
+    if (code && code.data) {
+      const extractedCode = normalizeCode(code.data);
+      if (/^[A-Z0-9]{8}$/.test(extractedCode)) {
+        els.joinCodeInput.value = extractedCode;
+        statusEl.textContent = "QR code detected!";
+        setTimeout(() => startJoining(extractedCode), 500);
+      } else {
+        statusEl.textContent = "Invalid QR code format";
+      }
+    } else {
+      statusEl.textContent = "No QR code found in image";
+    }
+  } catch (err) {
+    console.error("QR scan error:", err);
+    statusEl.textContent = "Failed to scan QR code";
+  }
+  // Clear input for next scan
+  e.target.value = "";
+  setTimeout(() => statusEl.hidden = true, 3000);
 });
 
 els.copyCodeBtn.addEventListener("click", async () => {
@@ -1183,6 +1280,9 @@ function cameraShow() {
 function cameraHide() {
   cameraStop();
   els.cameraOverlay.setAttribute("hidden", "");
+  if (els.cameraPreview.src && els.cameraPreview.src.startsWith("blob:")) {
+    URL.revokeObjectURL(els.cameraPreview.src);
+  }
   els.cameraPreview.setAttribute("hidden", "");
   els.cameraPreview.src = "";
   els.cameraRetakeRow.setAttribute("hidden", "");
@@ -1245,6 +1345,7 @@ function cameraCapture() {
     (blob) => {
       camera.capturedBlob = blob;
       const url = URL.createObjectURL(blob);
+      state.fileBlobUrls.push(url);
       els.cameraPreview.src = url;
       els.cameraPreview.removeAttribute("hidden");
       cameraStop();
@@ -1313,10 +1414,14 @@ els.cameraSendPhotoBtn.addEventListener("click", cameraSendPhoto);
 // CALL FEATURE
 // ================================================================
 
-const CALL_ICE = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
+import { fetchIceServers } from "./webrtc.js";
+
+let callIceServers = null;
+async function getCallIceServers() {
+  if (callIceServers) return callIceServers;
+  callIceServers = await fetchIceServers();
+  return callIceServers;
+}
 
 // Video quality profiles - adaptive based on connection
 const VIDEO_QUALITY = {
@@ -1472,7 +1577,8 @@ async function callSendTo(peerId, obj) {
 
 // --- WebRTC peer connection (audio + optional video) ---
 async function callCreatePC(remotePeerId, isInitiator, withVideo = false) {
-  const pc = new RTCPeerConnection({ iceServers: CALL_ICE });
+  const iceServers = await getCallIceServers();
+  const pc = new RTCPeerConnection({ iceServers });
 
   // Add local audio tracks
   if (state.call.localStream) {

@@ -28,6 +28,7 @@ const { WebSocketServer } = require("ws");
 const PORT = process.env.PORT || 8080;
 
 const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const ROOM_CODE_LENGTH = 8;
 const ROOM_JOIN_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
 const HEARTBEAT_INTERVAL_MS = 25 * 1000;
 
@@ -38,16 +39,9 @@ const METERED_API_KEY = process.env.METERED_API_KEY || "";
 const rooms = new Map();
 
 function generateRoomCode() {
-  const LETTERS = "ABCDEFGHJKMNPQRSTUVWXYZ";
-  const DIGITS  = "23456789";
   let code;
   do {
-    const letters = Array.from({ length: 3 }, () => LETTERS[crypto.randomInt(LETTERS.length)]).join("");
-    const digit   = DIGITS[crypto.randomInt(DIGITS.length)];
-    const pos = crypto.randomInt(4);
-    const arr = letters.split("");
-    arr.splice(pos, 0, digit);
-    code = arr.join("");
+    code = Array.from({ length: ROOM_CODE_LENGTH }, () => CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)]).join("");
   } while (rooms.has(code));
   return code;
 }
@@ -133,6 +127,58 @@ function send(socket, message) {
 const app = express();
 const PUBLIC_DIR = path.join(__dirname, "public");
 
+// CSP header for security
+app.use((req, res, next) => {
+  res.setHeader("Content-Security-Policy", 
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: blob:; " +
+    "font-src 'self' data:; " +
+    "connect-src 'self' wss: https:; " +
+    "media-src 'self' blob:; " +
+    "worker-src 'self' blob:; " +
+    "frame-ancestors 'none'; " +
+    "base-uri 'self'; " +
+    "form-action 'self';"
+  );
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+
+// Simple in-memory rate limiting
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const RATE_LIMIT_MAX = 100; // max requests per window
+
+function rateLimit(req, res, next) {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  const record = rateLimitMap.get(ip) || { count: 0, resetTime: now + RATE_LIMIT_WINDOW };
+  
+  if (now > record.resetTime) {
+    record.count = 0;
+    record.resetTime = now + RATE_LIMIT_WINDOW;
+  }
+  
+  record.count++;
+  rateLimitMap.set(ip, record);
+  
+  res.setHeader("X-RateLimit-Limit", RATE_LIMIT_MAX);
+  res.setHeader("X-RateLimit-Remaining", Math.max(0, RATE_LIMIT_MAX - record.count));
+  res.setHeader("X-RateLimit-Reset", Math.ceil(record.resetTime / 1000));
+  
+  if (record.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: "Too many requests" });
+  }
+  
+  next();
+}
+
+app.use(rateLimit);
+
 app.use(compression());
 app.use(express.static(PUBLIC_DIR, {
   etag: true,
@@ -144,6 +190,17 @@ app.use(express.static(PUBLIC_DIR, {
     }
   },
 }));
+
+// Clean up old rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitMap.entries()) {
+    if (now > record.resetTime) rateLimitMap.delete(ip);
+  }
+  for (const [ip, record] of wsConnectionMap.entries()) {
+    if (now > record.resetTime) wsConnectionMap.delete(ip);
+  }
+}, 300000); // every 5 minutes
 
 app.get("/healthz", (req, res) => {
   res.json({ ok: true, activeRooms: rooms.size });
@@ -172,7 +229,34 @@ app.get("/turn-credentials", async (req, res) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
-wss.on("connection", (socket) => {
+// WebSocket connection rate limiting
+const wsConnectionMap = new Map();
+const WS_RATE_LIMIT_WINDOW = 60000; // 1 minute
+const WS_RATE_LIMIT_MAX = 10; // max WS connections per IP per minute
+
+function checkWsRateLimit(ip) {
+  const now = Date.now();
+  const record = wsConnectionMap.get(ip) || { count: 0, resetTime: now + WS_RATE_LIMIT_WINDOW };
+  
+  if (now > record.resetTime) {
+    record.count = 0;
+    record.resetTime = now + WS_RATE_LIMIT_WINDOW;
+  }
+  
+  record.count++;
+  wsConnectionMap.set(ip, record);
+  
+  return record.count <= WS_RATE_LIMIT_MAX;
+}
+
+wss.on("connection", (socket, req) => {
+  const clientIp = req.socket.remoteAddress;
+  
+  if (!checkWsRateLimit(clientIp)) {
+    socket.close(1008, "Connection rate limit exceeded");
+    return;
+  }
+  
   socket.isAlive = true;
   socket.roomCode = null;
   socket.peerId = generatePeerId(); // unique ID for this connection

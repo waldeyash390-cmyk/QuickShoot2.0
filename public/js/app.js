@@ -1398,9 +1398,6 @@ function updateConnectionQuality(quality) {
     els.qualityLabel.textContent = labels[quality] || "Good";
   }
 }
-    els.callActiveTimer.textContent = `${m}:${s}`;
-  }, 1000);
-}
 function callStopTimer() {
   if (state.call.callTimerHandle) clearInterval(state.call.callTimerHandle);
   state.call.callTimerHandle = null;

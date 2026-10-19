@@ -883,13 +883,39 @@
   </div>
 </div>
 
-<!-- ======================= ACTIVE CALL BAR ======================= -->
+<!-- ======================= ACTIVE CALL BAR (audio only) ======================= -->
 <div class="call-active-bar" id="callActiveBar" hidden>
   <span class="call-active-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle></svg></span>
   <span class="call-active-label" id="callActiveLabel">Call active</span>
   <span class="call-active-timer" id="callActiveTimer">0:00</span>
-  <div id="callVideoContainer" style="position:absolute;top:100%;left:0;right:0;height:200px;background:#000;z-index:44;display:flex;align-items:center;justify-content:center;"></div>
   <button class="call-end-btn" id="callEndBtn" aria-label="End call">End call</button>
+</div>
+
+<!-- ======================= VIDEO CALL OVERLAY ======================= -->
+<div class="overlay" id="videoCallOverlay" hidden>
+  <div class="video-call-container">
+    <div class="remote-video-wrapper">
+      <video id="remoteVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+      <div class="remote-video-label" id="remoteVideoLabel">Connecting…</div>
+    </div>
+    <div class="local-video-pip" id="localVideoPip">
+      <video id="localVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:12px;"></video>
+    </div>
+    <div class="video-call-controls">
+      <button class="video-control-btn" id="videoMuteBtn" aria-label="Mute/Unmute">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+      </button>
+      <button class="video-control-btn" id="videoCameraBtn" aria-label="Camera On/Off">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+      </button>
+      <button class="video-control-btn video-end-btn" id="videoEndBtn" aria-label="End Video Call">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 3.86a10 10 0 0 1 12.54 12.54"></path><path d="M13.82 19.22a10 10 0 0 1-3.74-3.74"></path><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <button class="video-control-btn" id="videoFlipBtn" aria-label="Flip Camera">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"></path><path d="M23 20v-6h-6"></path><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- Hidden audio element for remote stream -->

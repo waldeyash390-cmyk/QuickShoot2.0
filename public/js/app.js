@@ -62,6 +62,14 @@ const els = {
   callActiveTimer: $("callActiveTimer"),
   callEndBtn: $("callEndBtn"),
   callRemoteAudio: $("callRemoteAudio"),
+  videoCallOverlay: $("videoCallOverlay"),
+  remoteVideo: $("remoteVideo"),
+  localVideo: $("localVideo"),
+  remoteVideoLabel: $("remoteVideoLabel"),
+  videoMuteBtn: $("videoMuteBtn"),
+  videoCameraBtn: $("videoCameraBtn"),
+  videoEndBtn: $("videoEndBtn"),
+  videoFlipBtn: $("videoFlipBtn"),
   cameraOverlay: $("cameraOverlay"),
   cameraCloseBtn: $("cameraCloseBtn"),
   cameraVideo: $("cameraVideo"),
@@ -530,10 +538,10 @@ function addMessage({ text, mine, ts, senderLabel, msgId }) {
   return div;
 }
 
-function addSystemMessage(text) {
+function addSystemMessage(html) {
   const div = document.createElement("div");
   div.className = "msg system";
-  div.textContent = text;
+  div.innerHTML = html;
   els.messages.appendChild(div);
   els.messages.scrollTop = els.messages.scrollHeight;
 }
@@ -1290,13 +1298,25 @@ function callHideNotification() {
   els.callNotification.setAttribute("hidden", "");
 }
 function callShowActiveBar(label) {
-  els.callActiveLabel.textContent = label || "Call active";
-  els.callActiveBar.removeAttribute("hidden");
-  document.body.classList.add("call-bar-active");
+  if (state.call.isVideo) {
+    // Video call - show full-screen overlay
+    els.videoCallOverlay?.removeAttribute("hidden");
+    els.remoteVideoLabel.textContent = label || "Video call";
+    // Ensure local video preview shows
+    if (els.localVideo && state.call.localVideoStream) {
+      els.localVideo.srcObject = state.call.localVideoStream;
+    }
+  } else {
+    // Audio call - show top bar
+    els.callActiveLabel.textContent = label || "Call active";
+    els.callActiveBar.removeAttribute("hidden");
+    document.body.classList.add("call-bar-active");
+  }
 }
 function callHideActiveBar() {
   els.callActiveBar.setAttribute("hidden", "");
   document.body.classList.remove("call-bar-active");
+  els.videoCallOverlay?.setAttribute("hidden", "");
 }
 function callStartTimer() {
   state.call.callStartTime = Date.now();
@@ -1342,19 +1362,11 @@ async function callCreatePC(remotePeerId, isInitiator, withVideo = false) {
     const stream = e.streams[0];
     const hasVideo = stream.getVideoTracks().length > 0;
     if (hasVideo) {
-      // Create video element for remote peer
-      let videoEl = state.call.remoteVideoElements.get(remotePeerId);
-      if (!videoEl) {
-        videoEl = document.createElement("video");
-        videoEl.autoplay = true;
-        videoEl.playsInline = true;
-        videoEl.style.cssText = "width:100%;height:100%;object-fit:cover;background:#000;border-radius:12px;";
-        state.call.remoteVideoElements.set(remotePeerId, videoEl);
-        // Add to call active bar video container
-        const container = document.getElementById("callVideoContainer");
-        if (container) container.appendChild(videoEl);
+      // Use the dedicated remote video element in the video call overlay
+      if (els.remoteVideo) {
+        els.remoteVideo.srcObject = stream;
+        els.remoteVideoLabel.textContent = "Connected";
       }
-      videoEl.srcObject = stream;
     } else {
       els.callRemoteAudio.srcObject = stream;
     }
@@ -1587,4 +1599,55 @@ els.callDeclineBtn.addEventListener("click", () => callDecline());
 els.callEndBtn.addEventListener("click", () => {
   callEnd();
   addSystemMessage("📵 You ended the call.");
+});
+
+// Video call controls
+els.videoMuteBtn?.addEventListener("click", () => {
+  if (state.call.localStream) {
+    const audioTrack = state.call.localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      els.videoMuteBtn.classList.toggle("muted", !audioTrack.enabled);
+    }
+  }
+});
+
+els.videoCameraBtn?.addEventListener("click", () => {
+  if (state.call.localVideoStream) {
+    const videoTrack = state.call.localVideoStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      els.videoCameraBtn.classList.toggle("camera-off", !videoTrack.enabled);
+      // Update local preview visibility
+      if (els.localVideo) els.localVideo.style.opacity = videoTrack.enabled ? "1" : "0.3";
+    }
+  }
+});
+
+els.videoFlipBtn?.addEventListener("click", async () => {
+  if (!state.call.localVideoStream) return;
+  const oldTrack = state.call.localVideoStream.getVideoTracks()[0];
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: oldTrack.getSettings().facingMode === "user" ? "environment" : "user" }
+    });
+    const newTrack = newStream.getVideoTracks()[0];
+    state.call.localVideoStream.removeTrack(oldTrack);
+    state.call.localVideoStream.addTrack(newTrack);
+    oldTrack.stop();
+    // Update peer connections
+    for (const pc of state.call.peerConnections.values()) {
+      const sender = pc.getSenders().find(s => s.track?.kind === "video");
+      if (sender) await sender.replaceTrack(newTrack);
+    }
+    // Update local preview
+    if (els.localVideo) els.localVideo.srcObject = state.call.localVideoStream;
+  } catch (err) {
+    console.error("Camera flip failed:", err);
+  }
+});
+
+els.videoEndBtn?.addEventListener("click", () => {
+  callEnd();
+  addSystemMessage("📵 You ended the video call.");
 });

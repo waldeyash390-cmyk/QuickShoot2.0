@@ -301,6 +301,7 @@ async function handleSignalingMessage(msg) {
   switch (msg.type) {
 
     case "hosted": {
+      console.log("Received hosted response:", msg);
       state.roomCode = msg.code;
       state.myPeerId = msg.peerId;
       state.myName = msg.name || "Host";
@@ -316,9 +317,15 @@ async function handleSignalingMessage(msg) {
       els.qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}`;
       if (els.qrWrap) show(els.qrWrap);
       // Host creates the mesh but waits for first peer before entering chat
-      state.cryptoKey = await CryptoModule.deriveKeyFromRoomCode(state.roomCode);
-      state.mesh = new PeerMesh(state.signaling, state.myPeerId);
-      wireMeshEvents();
+      try {
+        state.cryptoKey = await CryptoModule.deriveKeyFromRoomCode(state.roomCode);
+        state.mesh = new PeerMesh(state.signaling, state.myPeerId);
+        wireMeshEvents();
+        toast("Room created! Share the code.");
+      } catch (err) {
+        console.error("Hosted handler error:", err);
+        toast("Error setting up room: " + err.message);
+      }
       // DO NOT call onFirstConnect() here — host waits on the lobby until a user joins
       break;
     }

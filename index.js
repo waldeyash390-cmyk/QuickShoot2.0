@@ -192,7 +192,7 @@ function apiRateLimit(req, res, next) {
 // Apply rate limiting to API routes only
 app.use("/healthz", apiRateLimit);
 app.use("/turn-credentials", apiRateLimit);
-app.use("/ws", apiRateLimit); // This will be handled by WS rate limiting below
+// Note: /ws WebSocket endpoint has its own rate limiting in checkWsRateLimit()
 
 // Clean up old rate limit entries periodically
 setInterval(() => {

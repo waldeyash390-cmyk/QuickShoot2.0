@@ -106,6 +106,8 @@ const els = {
   toolsCloseBtn: $("toolsCloseBtn"),
   convOverlay: $("convOverlay"),
   convModalClose: $("convModalClose"),
+  convFcRemove: $("convFcRemove"),
+  convBtn: $("convBtn"),
 
   toast: $("toast"),
 };
@@ -1310,6 +1312,18 @@ els.toolsOverlay.addEventListener("click", (e) => {
 els.convModalClose.addEventListener("click", () => hide(els.convOverlay));
 els.convOverlay.addEventListener("click", (e) => {
   if (e.target === els.convOverlay) hide(els.convOverlay);
+});
+els.convFcRemove?.addEventListener("click", () => {
+  // Reset file selection in converter modal
+  const fileInput = document.getElementById("convFileInput");
+  if (fileInput) fileInput.value = "";
+  const fileChosen = document.getElementById("convFileChosen");
+  const uploadZone = document.getElementById("convUploadZone");
+  if (fileChosen) fileChosen.hidden = true;
+  if (uploadZone) uploadZone.hidden = false;
+});
+els.convBtn?.addEventListener("click", () => {
+  toast("Converter feature coming soon");
 });
 
 window.addEventListener("beforeunload", () => {

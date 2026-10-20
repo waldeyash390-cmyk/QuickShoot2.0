@@ -248,21 +248,9 @@ button{ cursor:pointer; }
   z-index: 2;
 }
 
-/* Chat screen video background */
+/* Chat screen - solid black background, no video */
 #screenChat{
-  background: #0b0d10;
-}
-#screenChat::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,.45) 100%);
-  z-index: 1;
-  pointer-events: none;
-}
-#screenChat > *:not(.bg-video) {
-  position: relative;
-  z-index: 2;
+  background: #000000;
 }
 
 /* Video call overlay video background */
@@ -561,6 +549,90 @@ html.lite .link-line .pulse { animation-duration: 4s; }
 #cancelWaitBtn:hover,
 #cancelWaitBtnHost:hover {
   background: rgba(229,96,90,0.08);
+}
+
+/* Host card - glassmorphism container for room-ready page */
+.host-card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 24px;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  text-align: center;
+}
+.host-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  pointer-events: none;
+  background: var(--glass-highlight);
+  opacity: 0.5;
+}
+
+/* Adjust host lobby elements inside the card */
+.host-lobby {
+  gap: 16px;
+}
+.host-lobby-header {
+  gap: 8px;
+}
+.host-lobby-title {
+  font-size: 20px;
+}
+.host-lobby-sub {
+  font-size: 12px;
+  max-width: 100%;
+}
+.host-code-card {
+  margin-bottom: 8px;
+  width: 100%;
+}
+.host-code-row {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.room-code {
+  font-size: 28px;
+  letter-spacing: 4px;
+  padding: 12px 16px;
+  flex: 1;
+  min-width: 0;
+}
+.host-copy-btn {
+  padding: 10px 14px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.host-qr-wrap {
+  margin-bottom: 8px;
+}
+.qr-img {
+  width: 170px;
+  height: 170px;
+  border-radius: 12px;
+}
+.host-qr-label {
+  font-size: 11px;
+}
+.host-waiting-pulse {
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+#cancelWaitBtnHost {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 16px;
 }
 
 

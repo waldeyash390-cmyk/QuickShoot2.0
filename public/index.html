@@ -812,34 +812,36 @@
 
       <!-- HOST STATE (shown to host waiting for guests) -->
       <div class="host-lobby" id="hostLobby" hidden>
-        <div class="host-lobby-header">
-          <div class="host-lobby-badge">HOST</div>
-          <p class="host-lobby-title">Your room is ready</p>
-          <p class="host-lobby-sub">Share the code or QR — the chat opens when someone joins</p>
-        </div>
-
-        <div class="host-code-card" id="roomCodeBlock" hidden>
-          <div class="host-code-label">ROOM CODE</div>
-          <div class="host-code-row">
-            <span class="room-code" id="roomCodeText">----</span>
-            <button class="host-copy-btn" id="copyCodeBtn" title="Copy code">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              <span id="copyCodeLabel">Copy</span>
-        </button>
+        <div class="host-card">
+          <div class="host-lobby-header">
+            <div class="host-lobby-badge">HOST</div>
+            <p class="host-lobby-title">Your room is ready</p>
+            <p class="host-lobby-sub">Share the code or QR — the chat opens when someone joins</p>
           </div>
-        </div>
 
-        <div class="host-qr-wrap" id="qrWrap" hidden>
-          <img id="qrImg" class="qr-img" alt="QR code for room link">
-          <p class="host-qr-label">Scan to join instantly</p>
-        </div>
+          <div class="host-code-card" id="roomCodeBlock" hidden>
+            <div class="host-code-label">ROOM CODE</div>
+            <div class="host-code-row">
+              <span class="room-code" id="roomCodeText">----</span>
+              <button class="host-copy-btn" id="copyCodeBtn" title="Copy code">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span id="copyCodeLabel">Copy</span>
+          </button>
+            </div>
+          </div>
 
-        <div class="host-waiting-pulse">
-          <span class="pulse-dot"></span>
-          <span id="waitingHint">Waiting for someone to join…</span>
-        </div>
+          <div class="host-qr-wrap" id="qrWrap" hidden>
+            <img id="qrImg" class="qr-img" alt="QR code for room link">
+            <p class="host-qr-label">Scan to join instantly</p>
+          </div>
 
-        <button class="btn ghost small" id="cancelWaitBtnHost">Cancel room</button>
+          <div class="host-waiting-pulse">
+            <span class="pulse-dot"></span>
+            <span id="waitingHint">Waiting for someone to join…</span>
+          </div>
+
+          <button class="btn ghost small" id="cancelWaitBtnHost">Cancel room</button>
+        </div>
       </div>
 
       <!-- SETUP STATE (spinner while setting up) -->
@@ -853,9 +855,6 @@
 
   <!-- ======================= CHAT SCREEN ======================= -->
   <main class="screen chat-screen" id="screenChat" hidden>
-    <video class="bg-video" aria-hidden="true" autoplay muted loop playsinline preload="auto" poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'%3E%3Crect fill='%230b0d10' width='1920' height='1080'/%3E%3C/svg%3E">
-      <source src="1111.mp4" type="video/mp4">
-    </video>
     <section class="messages" id="messages" aria-live="polite"></section>
     
     <!-- File Transfer Panel (collapsible) -->

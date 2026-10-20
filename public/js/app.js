@@ -223,40 +223,59 @@ async function startHosting() {
   console.log("startHosting called");
   const passphrase = document.getElementById("hostPassphraseInput")?.value.trim() || null;
   console.log("passphrase:", passphrase);
-  toast("Creating room…");
-  showScreen("waiting");
-  // Show setup spinner while connecting
-  show(els.setupState);
-  hide(els.hostLobby);
-  hide(els.joinLobby);
-  els.waitingLabel.textContent = "Setting up your room…";
-  hide(els.roomCodeBlock);
-  if (els.qrWrap) hide(els.qrWrap);
-  setStatus("connecting", "Connecting…");
 
-  console.log("Creating Signaling instance...");
-  state.signaling = new Signaling();
-  state.signaling.addEventListener("open", () => {
-    console.log("Signaling connected, sending host request");
-    state.signaling.send({ type: "host", passphrase });
-  });
-  state.signaling.addEventListener("message", (e) => {
-    console.log("Received signaling message:", e.detail);
-    handleSignalingMessage(e.detail);
-  });
-  state.signaling.addEventListener("error", (err) => {
-    console.error("Signaling connection error:", err);
-    toast("Connection failed. Check server is running.");
-    setStatus("error", "Connection failed");
-  });
-  state.signaling.addEventListener("close", (e) => {
-    console.log("Signaling connection closed:", e);
-    if (els.waitingLabel.textContent.includes("Setting up")) {
-      toast("Connection lost. Retrying…");
-    }
-  });
-  console.log("Calling signaling.connect()...");
-  state.signaling.connect();
+  // Prevent double-click
+  if (els.hostBtn.disabled) return;
+  els.hostBtn.disabled = true;
+  const originalBtnText = els.hostBtn.textContent;
+  els.hostBtn.textContent = "Creating…";
+
+  try {
+    toast("Creating room…");
+    showScreen("waiting");
+    // Show setup spinner while connecting
+    show(els.setupState);
+    hide(els.hostLobby);
+    hide(els.joinLobby);
+    els.waitingLabel.textContent = "Setting up your room…";
+    hide(els.roomCodeBlock);
+    if (els.qrWrap) hide(els.qrWrap);
+    setStatus("connecting", "Connecting…");
+
+    console.log("Creating Signaling instance...");
+    state.signaling = new Signaling();
+    state.signaling.addEventListener("open", () => {
+      console.log("Signaling connected, sending host request");
+      state.signaling.send({ type: "host", passphrase });
+    });
+    state.signaling.addEventListener("message", (e) => {
+      console.log("Received signaling message:", e.detail);
+      handleSignalingMessage(e.detail);
+    });
+    state.signaling.addEventListener("error", (err) => {
+      console.error("Signaling connection error:", err);
+      toast("Connection failed. Check server is running.");
+      setStatus("error", "Connection failed");
+      resetHostButton();
+    });
+    state.signaling.addEventListener("close", (e) => {
+      console.log("Signaling connection closed:", e);
+      if (els.waitingLabel.textContent.includes("Setting up")) {
+        toast("Connection lost. Retrying…");
+      }
+    });
+    console.log("Calling signaling.connect()...");
+    state.signaling.connect();
+  } catch (err) {
+    console.error("startHosting error:", err);
+    toast("Failed to start: " + err.message);
+    resetHostButton();
+  }
+}
+
+function resetHostButton() {
+  els.hostBtn.disabled = false;
+  els.hostBtn.textContent = "Start Chat";
 }
 
 async function startJoining(code) {

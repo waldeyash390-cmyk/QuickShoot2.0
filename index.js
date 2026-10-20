@@ -133,7 +133,7 @@ app.use((req, res, next) => {
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
     "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: blob:; " +
+    "img-src 'self' data: blob: https://api.qrserver.com; " +
     "font-src 'self' data:; " +
     "connect-src 'self' wss: https:; " +
     "media-src 'self' blob:; " +

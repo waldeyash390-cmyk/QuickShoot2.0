@@ -323,21 +323,34 @@ async function handleSignalingMessage(msg) {
       if (els.waitingHint) els.waitingHint.textContent = "Waiting for someone to join…";
       const shareUrl = `${location.origin}${location.pathname}?code=${encodeURIComponent(msg.code)}`;
       
-      // Synchronous QR generation - no delays
-      try {
-        els.qrImg.innerHTML = '';
-        new QRCode(els.qrImg, {
-          text: shareUrl,
-          width: 200,
-          height: 200,
-          colorDark: "#000000",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.M
-        });
-      } catch (e) {
-        // Instant fallback - no waiting
+      // Wait for QRCode library to be ready, then generate
+      const generateQR = () => {
+        if (window.QRCode) {
+          try {
+            els.qrImg.innerHTML = '';
+            new QRCode(els.qrImg, {
+              text: shareUrl,
+              width: 200,
+              height: 200,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          } catch (e) {
+            console.error("[QR] Library error:", e);
+            fallbackToImage();
+          }
+        } else {
+          // Library not ready yet, wait a bit more
+          setTimeout(generateQR, 50);
+        }
+      };
+      
+      const fallbackToImage = () => {
         els.qrImg.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}" alt="QR code" style="width:200px;height:200px;">`;
-      }
+      };
+      
+      generateQR();
       if (els.qrWrap) show(els.qrWrap);
       // Host creates the mesh but waits for first peer before entering chat
       try {

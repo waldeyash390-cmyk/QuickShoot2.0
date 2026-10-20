@@ -102,6 +102,11 @@ const els = {
   leaveCancelBtn: $("leaveCancelBtn"),
   leaveConfirmBtn: $("leaveConfirmBtn"),
 
+  toolsOverlay: $("toolsOverlay"),
+  toolsCloseBtn: $("toolsCloseBtn"),
+  convOverlay: $("convOverlay"),
+  convModalClose: $("convModalClose"),
+
   toast: $("toast"),
 };
 
@@ -1292,6 +1297,19 @@ els.leaveConfirmBtn.addEventListener("click", () => {
   hide(els.leaveConfirmOverlay);
   resetToHome();
   toast("Session ended.");
+});
+
+// ---------------------------------------------------------------- tools panel
+els.toolsBtn.addEventListener("click", () => show(els.toolsOverlay));
+els.toolsCloseBtn.addEventListener("click", () => hide(els.toolsOverlay));
+els.toolsOverlay.addEventListener("click", (e) => {
+  if (e.target === els.toolsOverlay) hide(els.toolsOverlay);
+});
+
+// ---------------------------------------------------------------- converter modal
+els.convModalClose.addEventListener("click", () => hide(els.convOverlay));
+els.convOverlay.addEventListener("click", (e) => {
+  if (e.target === els.convOverlay) hide(els.convOverlay);
 });
 
 window.addEventListener("beforeunload", () => {

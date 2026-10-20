@@ -1763,29 +1763,122 @@ async function callHandleSignal(fromPeerId, payload) {
 
 // --- Call flow ---
 
-// Caller: starts an audio call
-async function callStart() {
-  if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
+// Get connected peers with labels for recipient selection
+function getConnectedPeers() {
+  if (!state.mesh) return [];
+  const peers = [];
+  for (const [peerId, conn] of state.mesh.connections.entries()) {
+    if (conn.isReady && conn.isReady()) {
+      peers.push({
+        peerId,
+        label: state.peerNames.get(peerId) || peerId.slice(0, 4).toUpperCase()
+      });
+    }
+  }
+  return peers;
+}
+
+// Show recipient picker for call initiation
+function showCallRecipientPicker(isVideo = false) {
+  const peers = getConnectedPeers();
+  if (peers.length === 0) {
     toast("No one else is in the room.");
     return;
   }
+  if (peers.length === 1) {
+    // Only one peer, call directly
+    callInitiateToPeer(peers[0].peerId, peers[0].label, isVideo);
+    return;
+  }
+
+  // Multiple peers - show picker
+  const picker = document.createElement("div");
+  picker.className = "call-recipient-picker";
+  picker.innerHTML = `
+    <div class="call-picker-backdrop"></div>
+    <div class="call-picker-card">
+      <div class="call-picker-header">
+        <span>${isVideo ? "Video call" : "Voice call"}</span>
+        <button class="call-picker-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="call-picker-list">
+        ${peers.map(p => `
+          <button class="call-picker-item" data-peer-id="${p.peerId}" data-peer-label="${p.label}">
+            <span class="call-picker-avatar">${p.label.charAt(0)}</span>
+            <span class="call-picker-name">${p.label}</span>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  const closePicker = () => {
+    picker.remove();
+    document.removeEventListener("keydown", onKeydown);
+  };
+
+  const onKeydown = (e) => {
+    if (e.key === "Escape") closePicker();
+  };
+
+  picker.querySelector(".call-picker-backdrop").addEventListener("click", closePicker);
+  picker.querySelector(".call-picker-close").addEventListener("click", closePicker);
+  picker.querySelectorAll(".call-picker-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const peerId = btn.dataset.peerId;
+      const label = btn.dataset.peerLabel;
+      closePicker();
+      callInitiateToPeer(peerId, label, isVideo);
+    });
+  });
+
+  document.addEventListener("keydown", onKeydown);
+  document.body.appendChild(picker);
+}
+
+// Initiate call to a specific peer
+async function callInitiateToPeer(peerId, peerLabel, isVideo = false) {
   if (callIsActive()) {
     toast("Already in a call.");
     return;
   }
   try {
-    state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    state.call.isVideo = false;
+    state.call.localStream = await navigator.mediaDevices.getUserMedia({ 
+      audio: true, 
+      video: isVideo ? VIDEO_QUALITY.high : false 
+    });
+    state.call.isVideo = isVideo;
+    if (isVideo) {
+      state.call.localVideoStream = state.call.localStream;
+      currentVideoQuality = "high";
+      startBandwidthMonitoring();
+      const videoTrack = state.call.localVideoStream.getVideoTracks()[0];
+      if (els.localVideoPip && videoTrack?.getSettings().facingMode === "user") {
+        els.localVideoPip.classList.add("mirror");
+      }
+    }
   } catch {
-    toast("Microphone access denied.");
+    toast(isVideo ? "Camera/microphone access denied." : "Microphone access denied.");
     return;
   }
-  await callBroadcast({ t: "call-invite", video: false });
+
+  await callSendTo(peerId, { t: "call-invite", video: isVideo });
   state.call.active = true;
   els.callBtn.classList.add("call-btn--active");
-  callShowActiveBar("Calling…");
+  if (isVideo) els.headerVideoCallBtn.classList.add("call-btn--active");
+  callShowActiveBar(isVideo ? "Video calling…" : "Calling…");
   callStartTimer();
-  addSystemMessage(`${ICONS.call} You started a call. Waiting for others to join…`);
+  addSystemMessage(`${isVideo ? ICONS.videoCall : ICONS.call} You started a ${isVideo ? "video " : ""}call to ${peerLabel}. Waiting for answer…`);
+}
+
+// Caller: starts an audio call
+async function callStart() {
+  showCallRecipientPicker(false);
+}
+
+// Caller: starts a video call
+async function callStartVideo() {
+  showCallRecipientPicker(true);
 }
 
 // Caller: starts a video call

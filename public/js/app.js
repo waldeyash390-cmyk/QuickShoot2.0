@@ -227,7 +227,7 @@ function resetToHome() {
 
 // ---------------------------------------------------------------- host flow
 async function startHosting() {
-  console.log("startHosting called");
+  console.log("=== startHosting called ===");
   const passphrase = document.getElementById("hostPassphraseInput")?.value.trim() || null;
   console.log("passphrase:", passphrase);
 
@@ -252,21 +252,21 @@ async function startHosting() {
     console.log("Creating Signaling instance...");
     state.signaling = new Signaling();
     state.signaling.addEventListener("open", () => {
-      console.log("Signaling connected, sending host request");
+      console.log("=== Signaling OPEN - sending host request ===");
       state.signaling.send({ type: "host", passphrase });
     });
     state.signaling.addEventListener("message", (e) => {
-      console.log("Received signaling message:", e.detail);
+      console.log("=== Signaling MESSAGE received ===", e.detail);
       handleSignalingMessage(e.detail);
     });
     state.signaling.addEventListener("error", (err) => {
-      console.error("Signaling connection error:", err);
+      console.error("=== Signaling ERROR ===", err);
       toast("Connection failed. Check server is running.");
       setStatus("error", "Connection failed");
       resetHostButton();
     });
     state.signaling.addEventListener("close", (e) => {
-      console.log("Signaling connection closed:", e);
+      console.log("=== Signaling CLOSE ===", e);
       if (els.waitingLabel.textContent.includes("Setting up")) {
         toast("Connection lost. Retrying…");
       }

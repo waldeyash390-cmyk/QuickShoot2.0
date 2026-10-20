@@ -5,7 +5,7 @@ const VERSION = "qs-v3";
 const SHELL = [
   "./", "index.html", "css/style.css",
   "js/app.js", "js/signaling.js", "js/webrtc.js", "js/crypto.js", "js/filetransfer.js",
-  "icon.svg"
+  "icon.svg", "1111.mp4"
 ];
 const CDN = /^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\//;
 

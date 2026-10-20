@@ -1132,9 +1132,16 @@ els.voiceBtn?.addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------- home UI
-els.hostBtn.addEventListener("click", startHosting);
+function attachHomeUI() {
+  console.log("[attachHomeUI] hostBtn:", els.hostBtn);
+  if (!els.hostBtn) {
+    console.error("[attachHomeUI] hostBtn not found in DOM, waiting for DOMContentLoaded");
+    document.addEventListener("DOMContentLoaded", attachHomeUI, { once: true });
+    return;
+  }
+  els.hostBtn.addEventListener("click", startHosting);
 
-els.joinForm.addEventListener("submit", (e) => {
+  els.joinForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const code = normalizeCode(els.joinCodeInput.value.trim());
   if (!/^[A-Z0-9]{4}$/.test(code)) {
@@ -2174,3 +2181,5 @@ els.videoEndBtn?.addEventListener("click", () => {
   callEnd();
   addSystemMessage("📵 You ended the video call.");
 });
+
+attachHomeUI();

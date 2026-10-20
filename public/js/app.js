@@ -65,6 +65,7 @@ const els = {
   videoCallOverlay: $("videoCallOverlay"),
   remoteVideo: $("remoteVideo"),
   localVideo: $("localVideo"),
+  localVideoPip: $("localVideoPip"),
   remoteVideoLabel: $("remoteVideoLabel"),
   remoteVideoPlaceholder: $("remoteVideoPlaceholder"),
   videoCallDuration: $("videoCallDuration"),
@@ -1570,32 +1571,58 @@ async function renegotiateVideoQuality() {
 
 // Broadcast a call-typed chat payload to all peers
 async function callBroadcast(obj) {
+  if (!state.mesh || !state.cryptoKey) {
+    console.error("[callBroadcast] No mesh or cryptoKey available");
+    throw new Error("Call infrastructure not ready");
+  }
   const encrypted = await CryptoModule.encryptJSON(state.cryptoKey, obj);
   state.mesh.broadcast("chat", encrypted.buffer.slice(0));
 }
 async function callSendTo(peerId, obj) {
+  if (!state.mesh || !state.cryptoKey) {
+    console.error("[callSendTo] No mesh or cryptoKey available");
+    throw new Error("Call infrastructure not ready");
+  }
   const encrypted = await CryptoModule.encryptJSON(state.cryptoKey, obj);
   state.mesh.sendTo(peerId, "chat", encrypted.buffer.slice(0));
 }
 
 // --- WebRTC peer connection (audio + optional video) ---
 async function callCreatePC(remotePeerId, isInitiator, withVideo = false) {
+  console.log(`[callCreatePC] Creating PC for ${remotePeerId}, isInitiator: ${isInitiator}, withVideo: ${withVideo}`);
   const iceServers = await getCallIceServers();
+  console.log(`[callCreatePC] Using ICE servers:`, iceServers.map(s => s.urls));
   const pc = new RTCPeerConnection({ iceServers });
+
+  pc.oniceconnectionstatechange = () => {
+    console.log(`[callCreatePC] ICE state for ${remotePeerId}: ${pc.iceConnectionState}`);
+  };
+  pc.onconnectionstatechange = () => {
+    console.log(`[callCreatePC] Connection state for ${remotePeerId}: ${pc.connectionState}`);
+    if (pc.connectionState === "connected") {
+      console.log(`[callCreatePC] Call connected with ${remotePeerId}`);
+    } else if (pc.connectionState === "failed") {
+      console.error(`[callCreatePC] Call failed with ${remotePeerId}`);
+      toast("Call connection failed. Check network/TURN.");
+    }
+  };
 
   // Add local audio tracks
   if (state.call.localStream) {
     state.call.localStream.getTracks().forEach(t => pc.addTrack(t, state.call.localStream));
+    console.log(`[callCreatePC] Added audio track`);
   }
   // Add local video tracks
   if (withVideo && state.call.localVideoStream) {
     state.call.localVideoStream.getTracks().forEach(t => pc.addTrack(t, state.call.localVideoStream));
+    console.log(`[callCreatePC] Added video track`);
   }
 
   // Handle remote tracks
   pc.ontrack = (e) => {
     const stream = e.streams[0];
     const hasVideo = stream.getVideoTracks().length > 0;
+    console.log(`[callCreatePC] Received remote track: audio=${stream.getAudioTracks().length > 0}, video=${hasVideo}`);
     if (hasVideo) {
       // Use the dedicated remote video element in the video call overlay
       if (els.remoteVideo) {
@@ -1611,6 +1638,7 @@ async function callCreatePC(remotePeerId, isInitiator, withVideo = false) {
   // ICE → send via encrypted chat channel
   pc.onicecandidate = async (e) => {
     if (e.candidate) {
+      console.log(`[callCreatePC] Sending ICE candidate to ${remotePeerId}`);
       await callSendTo(remotePeerId, { t: "call-signal", payload: { candidate: e.candidate } });
     }
   };
@@ -1621,27 +1649,42 @@ async function callCreatePC(remotePeerId, isInitiator, withVideo = false) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     await callSendTo(remotePeerId, { t: "call-signal", payload: { sdp: pc.localDescription, video: withVideo } });
+    console.log(`[callCreatePC] Sent offer to ${remotePeerId}`);
   }
   return pc;
 }
 
 async function callHandleSignal(fromPeerId, payload) {
+  console.log(`[callHandleSignal] Received signal from ${fromPeerId}:`, payload.sdp ? `sdp:${payload.sdp.type}` : "candidate");
   let pc = state.call.peerConnections.get(fromPeerId);
   const withVideo = payload.video === true;
   if (!pc) {
     // We just accepted the call; create PC as non-initiator
+    console.log(`[callHandleSignal] Creating new PC for ${fromPeerId}`);
     pc = await callCreatePC(fromPeerId, false, withVideo);
   }
   const { sdp, candidate } = payload;
   if (sdp) {
-    await pc.setRemoteDescription(sdp);
-    if (sdp.type === "offer") {
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await callSendTo(fromPeerId, { t: "call-signal", payload: { sdp: pc.localDescription } });
+    try {
+      await pc.setRemoteDescription(sdp);
+      console.log(`[callHandleSignal] Set remote description: ${sdp.type}`);
+      if (sdp.type === "offer") {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await callSendTo(fromPeerId, { t: "call-signal", payload: { sdp: pc.localDescription } });
+        console.log(`[callHandleSignal] Sent answer to ${fromPeerId}`);
+      }
+    } catch (err) {
+      console.error(`[callHandleSignal] SDP error:`, err);
+      toast("Call signaling error: " + err.message);
     }
   } else if (candidate) {
-    try { await pc.addIceCandidate(candidate); } catch { /* benign */ }
+    try { 
+      await pc.addIceCandidate(candidate); 
+      console.log(`[callHandleSignal] Added ICE candidate`);
+    } catch (err) {
+      console.warn(`[callHandleSignal] ICE candidate error (benign):`, err.message);
+    }
   }
 }
 
@@ -1834,7 +1877,7 @@ function callCleanup() {
 }
 
 // --- Button events ---
-els.callBtn.addEventListener("click", () => {
+els.callBtn.addEventListener("click", async () => {
   console.log("[callBtn] clicked", { mesh: !!state.mesh, peers: state.mesh?.connectedPeerCount(), active: callIsActive() });
   if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
     toast("No one connected yet. Wait for peer to join.");
@@ -1843,11 +1886,16 @@ els.callBtn.addEventListener("click", () => {
   if (callIsActive()) {
     callEnd();
   } else {
-    callStart();
+    try {
+      await callStart();
+    } catch (err) {
+      console.error("[callBtn] callStart failed:", err);
+      toast("Failed to start call: " + err.message);
+    }
   }
 });
 
-els.headerVideoCallBtn.addEventListener("click", () => {
+els.headerVideoCallBtn.addEventListener("click", async () => {
   console.log("[headerVideoCallBtn] clicked", { mesh: !!state.mesh, peers: state.mesh?.connectedPeerCount(), active: callIsActive() });
   if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
     toast("No one connected yet. Wait for peer to join.");
@@ -1856,7 +1904,12 @@ els.headerVideoCallBtn.addEventListener("click", () => {
   if (callIsActive()) {
     callEnd();
   } else {
-    callStartVideo();
+    try {
+      await callStartVideo();
+    } catch (err) {
+      console.error("[headerVideoCallBtn] callStartVideo failed:", err);
+      toast("Failed to start video call: " + err.message);
+    }
   }
 });
 

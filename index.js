@@ -211,20 +211,26 @@ app.get("/healthz", (req, res) => {
 
 app.get("/turn-credentials", async (req, res) => {
   if (!METERED_SUBDOMAIN || !METERED_API_KEY) {
+    console.warn("[TURN] Metered credentials not configured - set METERED_SUBDOMAIN and METERED_API_KEY env vars");
     return res.status(503).json({ error: "Metered TURN not configured" });
   }
   try {
     const url = `https://${METERED_SUBDOMAIN}.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`;
-    const response = await fetch(url);
+    console.log("[TURN] Fetching credentials from Metered...");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) {
       const text = await response.text();
       console.error("[TURN] Metered API error:", response.status, text);
       return res.status(502).json({ error: "Failed to fetch TURN credentials from Metered" });
     }
     const data = await response.json();
+    console.log("[TURN] Successfully fetched credentials:", Array.isArray(data) ? data.length : "object");
     res.json(data);
   } catch (err) {
-    console.error("[TURN] Failed to fetch Metered credentials:", err.message);
+    console.error("[TURN] Failed to fetch Metered credentials:", err.name === "AbortError" ? "timeout" : err.message);
     res.status(502).json({ error: "Failed to fetch TURN credentials" });
   }
 });

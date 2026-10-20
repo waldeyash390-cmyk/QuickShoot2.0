@@ -11,6 +11,13 @@ const STUN_SERVERS = [
   { urls: "stun:stun4.l.google.com:19302" },
 ];
 
+// Additional free TURN servers as fallback (no auth required, limited)
+const FALLBACK_TURN_SERVERS = [
+  { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+];
+
 let cachedIceServers = null;
 let iceServersPromise = null;
 
@@ -19,18 +26,22 @@ export async function fetchIceServers() {
   if (iceServersPromise) return iceServersPromise;
 
   iceServersPromise = (async () => {
+    let turnServers = [];
     try {
       const res = await fetch("/turn-credentials");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       // Metered returns an array of {urls, username, credential} objects
-      const turnServers = Array.isArray(data) ? data : [];
-      cachedIceServers = [...STUN_SERVERS, ...turnServers];
-      console.log("[WebRTC] ICE servers configured with TURN relay");
+      turnServers = Array.isArray(data) ? data : [];
+      console.log("[WebRTC] TURN credentials fetched from Metered:", turnServers.length, "servers");
     } catch (err) {
-      console.warn("[WebRTC] Failed to fetch TURN credentials, falling back to STUN-only:", err.message);
-      cachedIceServers = STUN_SERVERS;
+      console.warn("[WebRTC] Metered TURN fetch failed, trying fallback TURN:", err.message);
+      // Try fallback TURN servers
+      turnServers = FALLBACK_TURN_SERVERS;
     }
+
+    cachedIceServers = [...STUN_SERVERS, ...turnServers];
+    console.log("[WebRTC] ICE servers configured:", cachedIceServers.map(s => s.urls).join(", "));
     return cachedIceServers;
   })();
 

@@ -327,6 +327,12 @@ async function handleSignalingMessage(msg) {
       console.log("[QR] qrImg element:", els.qrImg);
       
       const renderQR = () => {
+        const fallbackToImage = () => {
+          console.log("[QR] Using image fallback");
+          els.qrImg.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}" alt="QR code" style="width:200px;height:200px;">`;
+          if (els.qrWrap) show(els.qrWrap);
+        };
+        
         if (window.QRCode) {
           try {
             // Clear any existing QR code
@@ -340,8 +346,10 @@ async function handleSignalingMessage(msg) {
               correctLevel: QRCode.CorrectLevel.M
             });
             console.log("[QR] QR code generated successfully");
+            if (els.qrWrap) show(els.qrWrap);
           } catch (e) {
             console.error("[QR] QRCode generation failed:", e);
+            fallbackToImage();
           }
         } else {
           // Wait for library to load, retry once
@@ -361,15 +369,15 @@ async function handleSignalingMessage(msg) {
                 console.log("[QR] QR code generated on retry");
               } catch (e) {
                 console.error("[QR] QRCode generation failed on retry:", e);
+                fallbackToImage();
               }
             } else {
-              console.error("[QR] QRCode lib still not loaded after retry");
+              console.error("[QR] QRCode lib still not loaded after retry, using fallback");
+              fallbackToImage();
             }
-            if (els.qrWrap) show(els.qrWrap);
           }, 200);
           return;
         }
-        if (els.qrWrap) show(els.qrWrap);
       };
       // Small delay to ensure QRCode library is loaded and DOM is ready
       setTimeout(renderQR, 100);

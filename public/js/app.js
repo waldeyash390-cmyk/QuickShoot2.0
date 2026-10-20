@@ -322,65 +322,23 @@ async function handleSignalingMessage(msg) {
       show(els.roomCodeBlock);
       if (els.waitingHint) els.waitingHint.textContent = "Waiting for someone to join…";
       const shareUrl = `${location.origin}${location.pathname}?code=${encodeURIComponent(msg.code)}`;
-      console.log("[QR] Generating QR for:", shareUrl);
-      console.log("[QR] QRCode lib loaded:", !!window.QRCode);
-      console.log("[QR] qrImg element:", els.qrImg);
       
-      const renderQR = () => {
-        const fallbackToImage = () => {
-          console.log("[QR] Using image fallback");
-          els.qrImg.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}" alt="QR code" style="width:200px;height:200px;">`;
-          if (els.qrWrap) show(els.qrWrap);
-        };
-        
-        if (window.QRCode) {
-          try {
-            // Clear any existing QR code
-            els.qrImg.innerHTML = '';
-            new QRCode(els.qrImg, {
-              text: shareUrl,
-              width: 200,
-              height: 200,
-              colorDark: "#000000",
-              colorLight: "#ffffff",
-              correctLevel: QRCode.CorrectLevel.M
-            });
-            console.log("[QR] QR code generated successfully");
-            if (els.qrWrap) show(els.qrWrap);
-          } catch (e) {
-            console.error("[QR] QRCode generation failed:", e);
-            fallbackToImage();
-          }
-        } else {
-          // Wait for library to load, retry once
-          console.log("[QR] QRCode lib not ready, waiting...");
-          setTimeout(() => {
-            if (window.QRCode) {
-              try {
-                els.qrImg.innerHTML = '';
-                new QRCode(els.qrImg, {
-                  text: shareUrl,
-                  width: 200,
-                  height: 200,
-                  colorDark: "#000000",
-                  colorLight: "#ffffff",
-                  correctLevel: QRCode.CorrectLevel.M
-                });
-                console.log("[QR] QR code generated on retry");
-              } catch (e) {
-                console.error("[QR] QRCode generation failed on retry:", e);
-                fallbackToImage();
-              }
-            } else {
-              console.error("[QR] QRCode lib still not loaded after retry, using fallback");
-              fallbackToImage();
-            }
-          }, 200);
-          return;
-        }
-      };
-      // Small delay to ensure QRCode library is loaded and DOM is ready
-      setTimeout(renderQR, 100);
+      // Synchronous QR generation - no delays
+      try {
+        els.qrImg.innerHTML = '';
+        new QRCode(els.qrImg, {
+          text: shareUrl,
+          width: 200,
+          height: 200,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch (e) {
+        // Instant fallback - no waiting
+        els.qrImg.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}" alt="QR code" style="width:200px;height:200px;">`;
+      }
+      if (els.qrWrap) show(els.qrWrap);
       // Host creates the mesh but waits for first peer before entering chat
       try {
         state.cryptoKey = await CryptoModule.deriveKeyFromRoomCode(state.roomCode);

@@ -32,9 +32,12 @@ self.addEventListener("fetch", (e) => {
   e.respondWith(
     caches.open(VERSION).then(async (cache) => {
       const cached = await cache.match(req, { ignoreSearch: sameOrigin });
-      const network = fetch(req)
-        .then((res) => { if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone()); return res; })
-        .catch(() => cached);
+      const network = fetch(req).then((res) => {
+        if (res && (res.ok || res.type === "opaque")) {
+          cache.put(req, res.clone());
+        }
+        return res;
+      }).catch(() => cached);
       // CDN libraries never change (pinned versions) -> cache first.
       if (cached && !sameOrigin) return cached;
       return cached || network;

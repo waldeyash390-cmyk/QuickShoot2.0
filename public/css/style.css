@@ -852,15 +852,87 @@ html.lite .link-line .pulse { animation-duration: 4s; }
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
-  padding: 10px 12px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  padding: 12px 14px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: center;
   gap: 10px;
   background: var(--surface);
   border-top: 1px solid var(--border);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: 0 -8px 32px rgba(0,0,0,0.2);
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.composer-input-wrap {
+  flex: 1;
+  position: relative;
+  background: var(--surface-2);
+  border-radius: 24px;
+  padding: 4px 8px;
+}
+
+.composer textarea{
+  width: 100%;
+  resize: none;
+  max-height: 120px;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.4;
+  border-radius: 20px;
+}
+
+.composer textarea::placeholder { color: var(--muted); }
+.composer textarea:focus{ outline: none; }
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.icon-btn:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
+}
+
+.send-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.send-btn:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+
+.voice-btn.recording {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,69,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(229,57,69,0); }
 }
 
 

@@ -1304,7 +1304,21 @@ function cameraShow() {
   els.cameraRetakeRow.setAttribute("hidden", "");
   els.cameraControls.removeAttribute("hidden");
   camera.capturedBlob = null;
-  cameraStart();
+  
+  // Show loading state
+  const vf = document.getElementById("cameraViewfinder");
+  if (!vf.querySelector(".camera-loading")) {
+    const loading = document.createElement("div");
+    loading.className = "camera-loading";
+    loading.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;z-index:10;color:var(--muted);";
+    loading.innerHTML = '<svg class="spin" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="1"/></svg>';
+    vf.appendChild(loading);
+  }
+  
+  cameraStart().finally(() => {
+    const loading = vf.querySelector(".camera-loading");
+    if (loading) loading.remove();
+  });
 }
 
 function cameraHide() {
@@ -1330,13 +1344,24 @@ async function cameraStart() {
     camera.stream = stream;
     els.cameraVideo.srcObject = stream;
     els.cameraVideo.removeAttribute("hidden");
+    // Restore viewfinder if error replaced it
+    const vf = document.getElementById("cameraViewfinder");
+    if (!vf.contains(els.cameraVideo)) {
+      vf.innerHTML = "";
+      vf.appendChild(els.cameraVideo);
+      vf.appendChild(els.cameraCanvas);
+      vf.appendChild(els.cameraPreview);
+      vf.appendChild(els.cameraFlash);
+    }
   } catch (err) {
+    console.error("Camera start failed:", err);
     els.cameraVideo.setAttribute("hidden", "");
     const vf = document.getElementById("cameraViewfinder");
     vf.innerHTML = `
       <div class="camera-error">
         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-        Camera access denied or unavailable.<br>Please allow camera permissions and try again.
+        Camera access denied or unavailable.<br>
+        <button class="btn primary small" onclick="openFilePicker()" style="margin-top: 12px;">Choose Image Instead</button>
       </div>`;
   }
 }
@@ -1399,8 +1424,39 @@ async function cameraSendPhoto() {
 // Event listeners
 els.cameraBtn.addEventListener("click", () => {
   if (!state.fileTransfer) return; // only usable in active session
-  cameraShow();
+  
+  // Try camera first, fallback to file picker on non-mobile or if camera fails
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  
+  if (isMobile) {
+    cameraShow();
+  } else {
+    // On desktop, show both options: camera or file picker
+    if (window.confirm("Open camera or choose from files?")) {
+      cameraShow();
+    } else {
+      openFilePicker();
+    }
+  }
 });
+
+// File picker fallback for desktop (global for inline onclick)
+window.openFilePicker = function openFilePicker() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment';
+  input.style.display = 'none';
+  input.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file && state.fileTransfer) {
+      state.fileTransfer.enqueue([file]);
+    }
+    input.remove();
+  });
+  document.body.appendChild(input);
+  input.click();
+}
 
 els.cameraCloseBtn.addEventListener("click", cameraHide);
 els.cameraOverlay.addEventListener("click", (e) => {

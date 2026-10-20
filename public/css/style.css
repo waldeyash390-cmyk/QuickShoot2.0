@@ -969,8 +969,13 @@ html.lite .link-line .pulse { animation-duration: 4s; }
   position:fixed; inset:0; background:rgba(0,0,0,0.55);
   display:flex; align-items:center; justify-content:center; z-index:50;
   padding:16px;
+  opacity: 1;
+  transition: opacity .25s ease;
 }
-.overlay[hidden]{ display:none; }
+.overlay[hidden]{
+  display:none;
+  opacity: 0;
+}
 /* Settings panel – glassmorphism */
 #settingsOverlay .settings-panel{
   background: var(--glass-bg);
@@ -1120,6 +1125,29 @@ html.lite .link-line .pulse { animation-duration: 4s; }
   flex-direction: column;
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
+  opacity: 0;
+  transform: scale(0.95) translateY(10px);
+  transition: opacity .25s ease, transform .25s ease;
+}
+
+#cameraOverlay:not([hidden]) .camera-modal {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-modal {
+    transition: none;
+  }
+}
+
+.camera-loading .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .camera-modal::before {

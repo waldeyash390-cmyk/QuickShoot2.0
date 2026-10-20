@@ -1683,10 +1683,11 @@ async function callStartVideo() {
     return;
   }
   try {
-    state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, echoCancellation: true, noiseSuppression: true, autoGainControl: true });
-    state.call.localVideoStream = await navigator.mediaDevices.getUserMedia({ 
+    state.call.localStream = await navigator.mediaDevices.getUserMedia({ 
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       video: VIDEO_QUALITY.high 
     });
+    state.call.localVideoStream = state.call.localStream;
     state.call.isVideo = true;
     currentVideoQuality = "high";
     startBandwidthMonitoring();
@@ -1727,19 +1728,24 @@ async function callAccept(fromPeerId, withVideo = false) {
   if (callIsActive() && state.call.peerConnections.has(targetId)) return;
 
   try {
-    if (!state.call.localStream) {
-      state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, echoCancellation: true, noiseSuppression: true, autoGainControl: true });
-    }
-    if (withVideo && !state.call.localVideoStream) {
-      state.call.localVideoStream = await navigator.mediaDevices.getUserMedia({ video: VIDEO_QUALITY.high });
-      state.call.isVideo = true;
-      currentVideoQuality = "high";
-      startBandwidthMonitoring();
-      // Set mirror for local preview (front camera = mirrored)
-      const videoTrack = state.call.localVideoStream.getVideoTracks()[0];
-      if (els.localVideoPip && videoTrack?.getSettings().facingMode === "user") {
-        els.localVideoPip.classList.add("mirror");
+    if (withVideo) {
+      if (!state.call.localStream || !state.call.localVideoStream) {
+        state.call.localStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: VIDEO_QUALITY.high
+        });
+        state.call.localVideoStream = state.call.localStream;
+        state.call.isVideo = true;
+        currentVideoQuality = "high";
+        startBandwidthMonitoring();
+        // Set mirror for local preview (front camera = mirrored)
+        const videoTrack = state.call.localVideoStream.getVideoTracks()[0];
+        if (els.localVideoPip && videoTrack?.getSettings().facingMode === "user") {
+          els.localVideoPip.classList.add("mirror");
+        }
       }
+    } else if (!state.call.localStream) {
+      state.call.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, echoCancellation: true, noiseSuppression: true, autoGainControl: true });
     }
   } catch {
     toast("Camera/microphone access denied.");

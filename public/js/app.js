@@ -322,19 +322,28 @@ async function handleSignalingMessage(msg) {
       show(els.roomCodeBlock);
       if (els.waitingHint) els.waitingHint.textContent = "Waiting for someone to join…";
       const shareUrl = `${location.origin}${location.pathname}?code=${encodeURIComponent(msg.code)}`;
-      if (window.QRCode) {
-        new QRCode(els.qrImg, {
-          text: shareUrl,
-          width: 200,
-          height: 200,
-          colorDark: "#000000",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.M
-        });
-      } else {
-        els.qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}`;
-      }
-      if (els.qrWrap) show(els.qrWrap);
+      const renderQR = () => {
+        if (window.QRCode) {
+          try {
+            new QRCode(els.qrImg, {
+              text: shareUrl,
+              width: 200,
+              height: 200,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          } catch (e) {
+            console.warn("QRCode generation failed, using fallback:", e);
+            els.qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}`;
+          }
+        } else {
+          els.qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&data=${encodeURIComponent(shareUrl)}`;
+        }
+        if (els.qrWrap) show(els.qrWrap);
+      };
+      // Small delay to ensure QRCode library is loaded
+      setTimeout(renderQR, 50);
       // Host creates the mesh but waits for first peer before entering chat
       try {
         state.cryptoKey = await CryptoModule.deriveKeyFromRoomCode(state.roomCode);

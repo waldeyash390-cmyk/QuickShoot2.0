@@ -188,23 +188,20 @@ button{ cursor:pointer; }
   overflow:hidden;
 }
 
-/* Home screen 3D background (WebGL canvas, see js/fx.js) */
+/* Home screen video background */
 #screenHome{
-  background:
-    radial-gradient(ellipse at 50% 38%, #12303a 0%, #0b1620 45%, #070a10 100%);
+  background: #0b0d10;
 }
-.bg-canvas {
+.bg-video {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: cover;
   z-index: 0;
   pointer-events: none;
-  opacity: 0;
-  animation: bg-in 1.2s ease .1s forwards;
+  opacity: 1;
 }
-.bg-canvas.off { display: none; }
-@keyframes bg-in { to { opacity: .9; } }
 #screenHome::before {
   content: "";
   position: absolute;
@@ -213,12 +210,12 @@ button{ cursor:pointer; }
   z-index: 1;
   pointer-events: none;
 }
-#screenHome > *:not(.bg-canvas) {
+#screenHome > *:not(.bg-video) {
   position: relative;
   z-index: 2;
 }
 
-/* 3D tilt cards (desktop pointer only — see initTilt in js/fx.js) */
+/* 3D tilt cards (desktop pointer only) */
 .choice-grid { perspective: 900px; }
 .choice-card {
   --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 0%;
@@ -247,29 +244,7 @@ html.lite .brand { animation: none; }
 html.lite .choice-card { transform: none !important; will-change: auto; }
 html.lite .choice-card > * { transform: none; }
 html.lite .link-line .pulse { animation-duration: 4s; }
-.link-art{ display:flex; align-items:center; gap:14px; }
-.node{
-  width:46px; height:46px; border-radius:50%;
-  border:1px solid var(--border); background:var(--surface);
-  display:flex; align-items:center; justify-content:center;
-  font-family:var(--font-mono); color:var(--muted); font-size:13px;
-}
-.link-line{
-  width:120px; height:1px; border-top:1px dashed var(--border);
-  position:relative;
-}
-.link-line .pulse{
-  position:absolute; top:-3px; left:0; width:6px; height:6px; border-radius:50%;
-  background:var(--accent); box-shadow:0 0 8px var(--accent);
-  animation:travel 2.6s ease-in-out infinite;
-}
-@keyframes travel{
-  0%{ left:0; opacity:0; }
-  10%{ opacity:1; }
-  90%{ opacity:1; }
-  100%{ left:114px; opacity:0; }
-}
-.link-caption{ color:var(--muted); font-size:13px; margin:-12px 0 0; }
+
 
 .choice-grid{
   display:grid; grid-template-columns:1fr 1fr; gap:var(--gap);

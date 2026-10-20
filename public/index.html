@@ -707,13 +707,9 @@
 
   <!-- ======================= HOME SCREEN ======================= -->
   <main class="screen" id="screenHome">
-    <canvas class="bg-canvas" id="bgCanvas" aria-hidden="true"></canvas>
-    <section class="link-art" aria-hidden="true">
-      <div class="node node-a">A</div>
-      <div class="link-line"><span class="pulse"></span></div>
-      <div class="node node-b">B</div>
-    </section>
-    <p class="link-caption">Fast, secure, and private file transfers—directly between devices.</p>
+    <video class="bg-video" id="bgVideo" aria-hidden="true" autoplay muted loop playsinline preload="auto" poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'%3E%3Crect fill='%230b0d10' width='1920' height='1080'/%3E%3C/svg%3E">
+      <source src="1111.mp4" type="video/mp4">
+    </video>
 
     <div class="choice-grid">
       <div class="choice-card">
@@ -1102,11 +1098,6 @@
 
 <script type="module" src="js/app.js"></script>
 <script type="module">
-  // 3D background + tilt: loaded after the page is interactive so it never blocks first paint.
-  const go = () => import("./fx.js").then(m => m.initFx()).catch(() => {
-    const c = document.getElementById("bgCanvas"); if (c) c.classList.add("off");
-  });
-  (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(go);
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
   }

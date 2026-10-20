@@ -322,6 +322,10 @@ async function handleSignalingMessage(msg) {
       show(els.roomCodeBlock);
       if (els.waitingHint) els.waitingHint.textContent = "Waiting for someone to join…";
       const shareUrl = `${location.origin}${location.pathname}?code=${encodeURIComponent(msg.code)}`;
+      console.log("[QR] Generating QR for:", shareUrl);
+      console.log("[QR] QRCode lib loaded:", !!window.QRCode);
+      console.log("[QR] qrImg element:", els.qrImg);
+      
       const renderQR = () => {
         if (window.QRCode) {
           try {
@@ -335,11 +339,13 @@ async function handleSignalingMessage(msg) {
               colorLight: "#ffffff",
               correctLevel: QRCode.CorrectLevel.M
             });
+            console.log("[QR] QR code generated successfully");
           } catch (e) {
-            console.warn("QRCode generation failed:", e);
+            console.error("[QR] QRCode generation failed:", e);
           }
         } else {
           // Wait for library to load, retry once
+          console.log("[QR] QRCode lib not ready, waiting...");
           setTimeout(() => {
             if (window.QRCode) {
               try {
@@ -352,9 +358,12 @@ async function handleSignalingMessage(msg) {
                   colorLight: "#ffffff",
                   correctLevel: QRCode.CorrectLevel.M
                 });
+                console.log("[QR] QR code generated on retry");
               } catch (e) {
-                console.warn("QRCode generation failed:", e);
+                console.error("[QR] QRCode generation failed on retry:", e);
               }
+            } else {
+              console.error("[QR] QRCode lib still not loaded after retry");
             }
             if (els.qrWrap) show(els.qrWrap);
           }, 200);
@@ -1855,6 +1864,12 @@ async function callAccept(fromPeerId, withVideo = false) {
   callHideNotification();
   if (callIsActive() && state.call.peerConnections.has(targetId)) return;
 
+  // Ensure chat channel is open for signaling
+  if (state.mesh && !state.mesh.hasOpenChatChannels()) {
+    toast("Connection not ready. Please wait a moment.");
+    return;
+  }
+
   try {
     if (withVideo) {
       if (!state.call.localStream || !state.call.localVideoStream) {
@@ -1963,9 +1978,13 @@ function callCleanup() {
 
 // --- Button events ---
 els.callBtn.addEventListener("click", async () => {
-  console.log("[callBtn] clicked", { mesh: !!state.mesh, peers: state.mesh?.connectedPeerCount(), active: callIsActive() });
+  console.log("[callBtn] clicked", { mesh: !!state.mesh, peers: state.mesh?.connectedPeerCount(), active: callIsActive(), chatOpen: state.mesh?.hasOpenChatChannels?.() });
   if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
     toast("No one connected yet. Wait for peer to join.");
+    return;
+  }
+  if (!state.mesh.hasOpenChatChannels()) {
+    toast("Connection not ready. Please wait a moment.");
     return;
   }
   if (callIsActive()) {
@@ -1981,9 +2000,13 @@ els.callBtn.addEventListener("click", async () => {
 });
 
 els.headerVideoCallBtn.addEventListener("click", async () => {
-  console.log("[headerVideoCallBtn] clicked", { mesh: !!state.mesh, peers: state.mesh?.connectedPeerCount(), active: callIsActive() });
+  console.log("[headerVideoCallBtn] clicked", { mesh: !!state.mesh, peers: state.mesh?.connectedPeerCount(), active: callIsActive(), chatOpen: state.mesh?.hasOpenChatChannels?.() });
   if (!state.mesh || state.mesh.connectedPeerCount() === 0) {
     toast("No one connected yet. Wait for peer to join.");
+    return;
+  }
+  if (!state.mesh.hasOpenChatChannels()) {
+    toast("Connection not ready. Please wait a moment.");
     return;
   }
   if (callIsActive()) {

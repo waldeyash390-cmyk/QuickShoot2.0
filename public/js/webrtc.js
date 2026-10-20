@@ -411,6 +411,16 @@ export class PeerMesh extends EventTarget {
   /** For backward compat with filetransfer (single-target send). */
   send(kind, data) { this.broadcast(kind, data); }
 
+  /** Check if any chat DataChannel is open and ready for signaling. */
+  hasOpenChatChannels() {
+    for (const conn of this.connections.values()) {
+      if (conn.chatChannel && conn.chatChannel.readyState === "open") {
+        return true;
+      }
+    }
+    return false;
+  }
+
   bufferedAmount(kind) {
     let max = 0;
     for (const c of this.connections.values()) max = Math.max(max, c.bufferedAmount(kind));
